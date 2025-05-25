@@ -1,5 +1,5 @@
 # Multi-stage build for Node.js Real-time Service
-FROM node:20-alpine AS builder
+FROM node:20.19.1-alpine3.20 AS builder
 
 # Set working directory
 WORKDIR /app
@@ -17,7 +17,7 @@ COPY . .
 RUN npm run build
 
 # Production stage
-FROM node:20-alpine AS production
+FROM node:20.19.1-alpine3.20 AS production
 
 # Install curl for health checks
 RUN apk add --no-cache curl

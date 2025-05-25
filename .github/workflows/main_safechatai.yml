@@ -1,5 +1,6 @@
 # Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
 # More GitHub Actions for Azure: https://github.com/Azure/actions
+# Enhanced by Secure Chat API team
 
 name: Build and deploy Node.js app to Azure Web App - SafeChatAi
 
@@ -29,6 +30,44 @@ jobs:
           npm run build --if-present
           npm run test --if-present
 
+      - name: Create web.config for Azure
+        run: |
+          cat > web.config << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <system.webServer>
+              <handlers>
+                <add name="iisnode" path="dist/index.js" verb="*" modules="iisnode"/>
+              </handlers>
+              <rewrite>
+                <rules>
+                  <rule name="NodeInspector" patternSyntax="ECMAScript" stopProcessing="true">
+                    <match url="^dist\/index.js\/debug[\/]?" />
+                  </rule>
+                  <rule name="StaticContent">
+                    <action type="Rewrite" url="public{REQUEST_URI}"/>
+                  </rule>
+                  <rule name="DynamicContent">
+                    <conditions>
+                      <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="True"/>
+                    </conditions>
+                    <action type="Rewrite" url="dist/index.js"/>
+                  </rule>
+                </rules>
+              </rewrite>
+              <security>
+                <requestFiltering>
+                  <hiddenSegments>
+                    <remove segment="bin"/>
+                  </hiddenSegments>
+                </requestFiltering>
+              </security>
+              <httpErrors existingResponse="PassThrough" />
+              <iisnode watchedFiles="web.config;*.js"/>
+            </system.webServer>
+          </configuration>
+          EOF
+
       - name: Zip artifact for deployment
         run: zip release.zip ./* -r
 
@@ -56,7 +95,7 @@ jobs:
 
       - name: Unzip artifact for deployment
         run: unzip release.zip
-      
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -71,4 +110,10 @@ jobs:
           app-name: 'SafeChatAi'
           slot-name: 'Production'
           package: .
-          
+
+      - name: ✅ Deployment Summary
+        run: |
+          echo "🎉 Deployment completed successfully!"
+          echo "🌐 App URL: https://safechatai.azurewebsites.net"
+          echo "📡 Socket.io URL: https://safechatai.azurewebsites.net"
+          echo "🔍 Health Check: https://safechatai.azurewebsites.net/health"
