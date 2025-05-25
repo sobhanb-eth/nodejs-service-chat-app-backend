@@ -1,0 +1,105 @@
+name: Deploy to Azure App Service
+
+on:
+  # Disabled automatic deployment - use manual deployment from Azure App Service
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - 'backend/nodejs-service/**'
+  workflow_dispatch:  # Only manual trigger
+
+env:
+  AZURE_WEBAPP_NAME: secure-chat-api
+  AZURE_WEBAPP_PACKAGE_PATH: './backend/nodejs-service'
+  NODE_VERSION: '20.x'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 🛒 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}/package-lock.json
+
+    - name: 📦 Install dependencies
+      run: |
+        cd ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+        npm ci --only=production
+
+    - name: 🔨 Build application
+      run: |
+        cd ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+        npm run build
+
+    - name: 🧪 Run tests
+      run: |
+        cd ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+        npm test -- --passWithNoTests
+
+    - name: 📁 Create deployment package
+      run: |
+        cd ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+        # Create a clean deployment package
+        mkdir -p deployment
+        cp -r dist deployment/
+        cp package*.json deployment/
+        cp -r node_modules deployment/
+
+        # Create web.config for Azure
+        cat > deployment/web.config << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <configuration>
+          <system.webServer>
+            <handlers>
+              <add name="iisnode" path="dist/index.js" verb="*" modules="iisnode"/>
+            </handlers>
+            <rewrite>
+              <rules>
+                <rule name="NodeInspector" patternSyntax="ECMAScript" stopProcessing="true">
+                  <match url="^dist\/index.js\/debug[\/]?" />
+                </rule>
+                <rule name="StaticContent">
+                  <action type="Rewrite" url="public{REQUEST_URI}"/>
+                </rule>
+                <rule name="DynamicContent">
+                  <conditions>
+                    <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="True"/>
+                  </conditions>
+                  <action type="Rewrite" url="dist/index.js"/>
+                </rule>
+              </rules>
+            </rewrite>
+            <security>
+              <requestFiltering>
+                <hiddenSegments>
+                  <remove segment="bin"/>
+                </hiddenSegments>
+              </requestFiltering>
+            </security>
+            <httpErrors existingResponse="PassThrough" />
+            <iisnode watchedFiles="web.config;*.js"/>
+          </system.webServer>
+        </configuration>
+        EOF
+
+    - name: 🚀 Deploy to Azure App Service
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+        package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}/deployment
+
+    - name: ✅ Deployment Summary
+      run: |
+        echo "🎉 Deployment completed successfully!"
+        echo "🌐 App URL: https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net"
+        echo "📡 Socket.io URL: https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net"
+        echo "🔍 Health Check: https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net/health"
