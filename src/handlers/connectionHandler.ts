@@ -7,59 +7,7 @@ import { getAuthenticatedUser, updateSocketActivity } from '../middleware/auth';
 import { database } from '../config/database';
 import { ObjectId } from 'mongodb';
 
-/**
- * Create test groups for development
- */
-async function createTestGroupsForUser(userId: string): Promise<string[]> {
-  try {
-    // Check if user already has groups (userId is already a string - Clerk user ID)
-    const existingGroups = await database.groups.find({
-      'members.userId': userId,
-      isActive: true
-    }).toArray();
 
-    if (existingGroups.length > 0) {
-      console.log(`📋 User already has ${existingGroups.length} groups`);
-      return existingGroups.map(g => g._id!.toString());
-    }
-
-    // Create test groups
-    const testGroups = [
-      { name: 'Team Alpha', description: 'Development team chat' },
-      { name: 'Project Beta', description: 'Project discussion' },
-      { name: 'Design Team', description: 'Design collaboration' }
-    ];
-
-    const groupIds: string[] = [];
-
-    for (const groupData of testGroups) {
-      const group = {
-        _id: new ObjectId(),
-        name: groupData.name,
-        description: groupData.description,
-        ownerId: userId, // Use string userId directly
-        members: [{
-          userId: userId, // Use string userId directly
-          role: 'owner' as const,
-          joinedAt: new Date()
-        }],
-        isPrivate: false,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-
-      await database.groups.insertOne(group);
-      groupIds.push(group._id.toString());
-      console.log(`✅ Created test group: ${group.name} (${group._id})`);
-    }
-
-    return groupIds;
-  } catch (error) {
-    console.error('❌ Error creating test groups:', error);
-    return [];
-  }
-}
 
 /**
  * Handle socket connection events
@@ -85,30 +33,23 @@ export function handleConnection(
 
       const { userId, user } = getAuthenticatedUser(socket);
 
-      // Create session for presence tracking
+      // Create session for presence tracking (use clerkId for consistency)
       const session = await presenceService.createSession(
-        userId,
+        user.clerkId,
         socket.id,
         socket.data.deviceType
       );
 
       socket.data.sessionId = session._id?.toString();
 
-      // Join user's personal room for private notifications
-      await socket.join(SocketRooms.user(userId));
+      // Join user's personal room for private notifications (use clerkId for consistency)
+      await socket.join(SocketRooms.user(user.clerkId));
 
       // Join presence room for online status updates
       await socket.join(SocketRooms.presence());
 
       // Get user's groups and join their rooms (use clerkId since groups store Clerk user IDs)
-      let userGroups = await authService.getUserGroups(user.clerkId);
-
-      // Create test groups if user has none (development only)
-      if (userGroups.length === 0) {
-        console.log('🧪 Creating test groups for new user...');
-        const testGroupIds = await createTestGroupsForUser(userId);
-        userGroups = testGroupIds;
-      }
+      const userGroups = await authService.getUserGroups(user.clerkId);
 
       for (const groupId of userGroups) {
         await socket.join(SocketRooms.group(groupId));
@@ -140,9 +81,9 @@ export function handleConnection(
       socket.emit('user_groups', validGroups);
       console.log(`📋 Sent ${validGroups.length} groups to client`);
 
-      // Broadcast user online status to presence room
+      // Broadcast user online status to presence room (use clerkId for consistency)
       socket.to(SocketRooms.presence()).emit(SocketEvents.USER_ONLINE, {
-        userId,
+        userId: user.clerkId,
         user: {
           _id: user._id,
           firstName: user.firstName,
@@ -174,16 +115,16 @@ export function handleConnection(
         // Remove session
         await presenceService.removeSessionBySocketId(socket.id);
 
-        // Check if user has other active sessions
-        const isStillOnline = await presenceService.isUserOnline(userId);
+        // Check if user has other active sessions (use clerkId for consistency)
+        const isStillOnline = await presenceService.isUserOnline(user.clerkId);
 
         if (!isStillOnline) {
-          // Broadcast user offline status
+          // Broadcast user offline status (use clerkId for consistency)
           socket.to(SocketRooms.presence()).emit(SocketEvents.USER_OFFLINE, {
-            userId,
+            userId: user.clerkId,
           });
 
-          // Update user's last seen
+          // Update user's last seen (use MongoDB ObjectId for this operation)
           await authService.updateLastSeen(userId);
         }
 
