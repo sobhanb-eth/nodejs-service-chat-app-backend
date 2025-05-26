@@ -125,22 +125,36 @@ class RealTimeService {
     // Health check endpoint
     this.app.get('/health', async (req, res) => {
       try {
+        console.log('🔍 Health check requested');
         const dbHealth = await database.healthCheck();
 
-        res.json({
+        const healthData = {
           status: 'ok',
           timestamp: new Date().toISOString(),
           service: 'nodejs-realtime-service',
           version: '1.0.0',
           database: dbHealth ? 'connected' : 'disconnected',
           uptime: process.uptime(),
-        });
+          memory: process.memoryUsage(),
+          pid: process.pid,
+          platform: process.platform,
+          nodeVersion: process.version,
+        };
+        console.log('✅ Health check passed');
+        res.json(healthData);
       } catch (error) {
-        res.status(500).json({
+        console.error('❌ Health check failed:', error);
+        const errorData = {
           status: 'error',
           message: 'Health check failed',
           error: error instanceof Error ? error.message : 'Unknown error',
-        });
+          timestamp: new Date().toISOString(),
+          uptime: process.uptime(),
+          memory: process.memoryUsage(),
+          pid: process.pid,
+        };
+        console.log('❌ Health check error data:', errorData);
+        res.status(500).json(errorData);
       }
     });
 
@@ -297,12 +311,33 @@ process.on('SIGINT', async () => {
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
   console.error('❌ Uncaught Exception:', error);
+  console.error('❌ Stack trace:', error.stack);
+  console.error('❌ Process will exit due to uncaught exception');
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  console.error('❌ Rejection details:', JSON.stringify(reason, null, 2));
+  console.error('❌ Process will exit due to unhandled rejection');
   process.exit(1);
+});
+
+// Add more process event listeners for debugging
+process.on('SIGTERM', () => {
+  console.log('🔔 Received SIGTERM signal');
+});
+
+process.on('SIGINT', () => {
+  console.log('🔔 Received SIGINT signal');
+});
+
+process.on('exit', (code) => {
+  console.log(`🔔 Process exiting with code: ${code}`);
+});
+
+process.on('beforeExit', (code) => {
+  console.log(`🔔 Process about to exit with code: ${code}`);
 });
 
 // Start the service

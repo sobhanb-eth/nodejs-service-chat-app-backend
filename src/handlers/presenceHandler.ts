@@ -224,10 +224,14 @@ export function handlePresenceEvents(
  */
 export function startTypingCleanup(): NodeJS.Timeout {
   return setInterval(() => {
-    // Clean up expired typing states
-    // Note: We rely on the individual timeouts to clean up states
-    // This is just a backup cleanup for any missed states
-    console.log(`🧹 Typing cleanup check: ${typingStates.size} active typing states`);
+    try {
+      // Clean up expired typing states
+      // Note: We rely on the individual timeouts to clean up states
+      // This is just a backup cleanup for any missed states
+      console.log(`🧹 Typing cleanup check: ${typingStates.size} active typing states`);
+    } catch (error) {
+      console.error('❌ Error during typing cleanup:', error);
+    }
   }, 30000); // Clean up every 30 seconds
 }
 

@@ -224,12 +224,13 @@ export function handleConnection(
 
   // Periodic activity update
   const activityInterval = setInterval(async () => {
-    if (socket.data.isAuthenticated) {
-      try {
+    try {
+      if (socket.data.isAuthenticated && socket.connected) {
         await presenceService.updateSessionActivity(socket.id);
-      } catch (error) {
-        console.error('❌ Error updating session activity:', error);
       }
+    } catch (error) {
+      console.error('❌ Error updating session activity:', error);
+      // Don't let this error crash the process
     }
   }, 30000); // Update every 30 seconds
 
