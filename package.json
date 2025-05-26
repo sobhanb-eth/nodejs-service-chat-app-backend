@@ -14,7 +14,7 @@
     "test:watch": "jest --watch --passWithNoTests",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
-    "postinstall": "npm run build"
+    "prestart": "npm run build"
   },
   "keywords": [
     "nodejs",
@@ -52,7 +52,8 @@
     "sharp": "^0.33.1",
     "socket.io": "^4.7.5",
     "winston": "^3.11.0",
-    "zod": "^3.22.4"
+    "zod": "^3.22.4",
+    "typescript": "^5.3.3"
   },
   "devDependencies": {
     "@types/compression": "^1.7.5",
@@ -71,8 +72,7 @@
     "nodemon": "^3.0.2",
     "ts-jest": "^29.1.1",
     "ts-node": "^10.9.2",
-    "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.3.3"
+    "tsconfig-paths": "^4.2.0"
   },
   "engines": {
     "node": ">=18.0.0"
