@@ -3,7 +3,7 @@
     "target": "ES2022",
     "module": "commonjs",
     "lib": ["ES2022"],
-    "types": ["node", "jest"],
+    "types": ["node"],
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": false,
@@ -45,7 +45,10 @@
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "**/*.test.ts",
+    "**/__tests__/**",
+    "**/test-setup.ts"
   ],
   "ts-node": {
     "require": ["tsconfig-paths/register"]
