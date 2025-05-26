@@ -100,8 +100,8 @@ export function handleConnection(
       // Join presence room for online status updates
       await socket.join(SocketRooms.presence());
 
-      // Get user's groups and join their rooms
-      let userGroups = await authService.getUserGroups(userId);
+      // Get user's groups and join their rooms (use clerkId since groups store Clerk user IDs)
+      let userGroups = await authService.getUserGroups(user.clerkId);
 
       // Create test groups if user has none (development only)
       if (userGroups.length === 0) {

@@ -69,7 +69,7 @@ export function createAuthMiddleware(authService: AuthService) {
       }
 
       // Attach user data to socket
-      socket.data.userId = user.clerkId; // ✅ Use Clerk user ID for consistency with group members
+      socket.data.userId = user._id?.toString();
       socket.data.user = user;
       socket.data.isAuthenticated = true;
       socket.data.joinedGroups = new Set();

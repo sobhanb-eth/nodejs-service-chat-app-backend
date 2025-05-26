@@ -32,9 +32,14 @@ export class MessageService {
     try {
       const { groupId, senderId, content, type } = payload;
 
-      // Validate ObjectIds
-      if (!ObjectId.isValid(groupId) || !ObjectId.isValid(senderId)) {
-        throw new Error('Invalid groupId or senderId');
+      // Validate groupId as ObjectId, senderId is Clerk user ID string
+      if (!ObjectId.isValid(groupId)) {
+        throw new Error('Invalid groupId');
+      }
+
+      // Validate senderId as non-empty string (Clerk user ID)
+      if (!senderId || typeof senderId !== 'string') {
+        throw new Error('Invalid senderId');
       }
 
       // Validate content

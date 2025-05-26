@@ -33,7 +33,8 @@ export class PresenceService {
     deviceType: 'mobile' | 'web' | 'desktop'
   ): Promise<Session> {
     try {
-      if (!ObjectId.isValid(userId)) {
+      // userId is now a Clerk user ID string, not MongoDB ObjectId
+      if (!userId || typeof userId !== 'string') {
         throw new Error('Invalid userId');
       }
 
@@ -179,12 +180,12 @@ export class PresenceService {
             latestSession: { $first: '$$ROOT' },
           },
         },
-        // Lookup user information
+        // Lookup user information (join by clerkId since sessions store Clerk user IDs)
         {
           $lookup: {
             from: 'users',
             localField: '_id',
-            foreignField: '_id',
+            foreignField: 'clerkId',
             as: 'user',
           },
         },
