@@ -8,68 +8,53 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'backend/nodejs-service/**'
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend/nodejs-service
     permissions:
-      contents: read #This is required for actions/checkout
+      contents: read
+      actions: read
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js version
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: './backend/nodejs-service/package-lock.json'
 
-      - name: npm install, build, and test
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Run tests
+        run: npm run test:ci
+
+      - name: Prepare deployment files
         run: |
-          npm ci
-          npm run build
-          npm run test:ci
+          # Copy necessary files for deployment
+          cp package.json dist/
+          cp package-lock.json dist/
+          cp web.config dist/
 
-      - name: Create web.config for Azure
+      - name: Create deployment package
         run: |
-          cat > web.config << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <configuration>
-            <system.webServer>
-              <handlers>
-                <add name="iisnode" path="dist/index.js" verb="*" modules="iisnode"/>
-              </handlers>
-              <rewrite>
-                <rules>
-                  <rule name="NodeInspector" patternSyntax="ECMAScript" stopProcessing="true">
-                    <match url="^dist\/index.js\/debug[\/]?" />
-                  </rule>
-                  <rule name="StaticContent">
-                    <action type="Rewrite" url="public{REQUEST_URI}"/>
-                  </rule>
-                  <rule name="DynamicContent">
-                    <conditions>
-                      <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="True"/>
-                    </conditions>
-                    <action type="Rewrite" url="dist/index.js"/>
-                  </rule>
-                </rules>
-              </rewrite>
-              <security>
-                <requestFiltering>
-                  <hiddenSegments>
-                    <remove segment="bin"/>
-                  </hiddenSegments>
-                </requestFiltering>
-              </security>
-              <httpErrors existingResponse="PassThrough" />
-              <iisnode watchedFiles="web.config;*.js"/>
-            </system.webServer>
-          </configuration>
-          EOF
-
-      - name: Zip artifact for deployment
-        run: zip release.zip ./* -r
+          cd dist
+          zip -r ../release.zip . -x "*.map"
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
@@ -84,8 +69,8 @@ jobs:
       name: 'Production'
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
     permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
+      id-token: write
+      contents: read
 
     steps:
       - name: Download artifact from build job
