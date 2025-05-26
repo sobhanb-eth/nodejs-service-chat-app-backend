@@ -75,8 +75,21 @@ IF EXIST "%DEPLOYMENT_TARGET%\package.json" (
 IF EXIST "%DEPLOYMENT_TARGET%\package.json" (
   pushd "%DEPLOYMENT_TARGET%"
   echo Building TypeScript...
+  echo Current directory: %CD%
+  echo Checking for tsconfig.json...
+  IF EXIST "tsconfig.json" (
+    echo tsconfig.json found
+  ) ELSE (
+    echo tsconfig.json NOT found
+  )
+  echo Running npm run build...
   call :ExecuteCmd !NPM_CMD! run build
-  IF !ERRORLEVEL! NEQ 0 goto error
+  IF !ERRORLEVEL! NEQ 0 (
+    echo Main build failed, trying explicit build...
+    call :ExecuteCmd !NPM_CMD! run build:explicit
+    IF !ERRORLEVEL! NEQ 0 goto error
+  )
+  echo Build completed successfully
   popd
 )
 

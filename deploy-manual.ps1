@@ -1,32 +1,12 @@
-# Manual deployment script for Azure App Service
-# Run this if GitHub Actions is having issues
-
-Write-Host "🚀 Starting manual deployment to Azure App Service..." -ForegroundColor Green
-
-# Check if Azure CLI is installed
-try {
-    az --version | Out-Null
-    Write-Host "✅ Azure CLI found" -ForegroundColor Green
-} catch {
-    Write-Host "❌ Azure CLI not found. Please install Azure CLI first." -ForegroundColor Red
-    exit 1
-}
+# Quick manual deployment for existing Azure Web App
 
 # Build the application
-Write-Host "📦 Building application..." -ForegroundColor Yellow
+Write-Host "Building application..." -ForegroundColor Yellow
+npm ci
 npm run build
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ Build failed!" -ForegroundColor Red
-    exit 1
-}
-
-Write-Host "✅ Build completed successfully" -ForegroundColor Green
-
 # Create deployment package
-Write-Host "📦 Creating deployment package..." -ForegroundColor Yellow
-
-# Create a temporary deployment directory
+Write-Host "Creating deployment package..." -ForegroundColor Yellow
 $deployDir = "deploy-temp"
 if (Test-Path $deployDir) {
     Remove-Item $deployDir -Recurse -Force
@@ -37,41 +17,58 @@ New-Item -ItemType Directory -Path $deployDir
 Copy-Item "dist/*" $deployDir -Recurse
 Copy-Item "package.json" $deployDir
 Copy-Item "package-lock.json" $deployDir
-Copy-Item "web.config" $deployDir
 
-Write-Host "✅ Deployment package created" -ForegroundColor Green
-
-# Deploy to Azure
-Write-Host "🌐 Deploying to Azure App Service..." -ForegroundColor Yellow
-
-try {
-    # Login to Azure (if not already logged in)
-    $account = az account show 2>$null
-    if (-not $account) {
-        Write-Host "🔐 Please login to Azure..." -ForegroundColor Yellow
-        az login
-    }
-
-    # Deploy using Azure CLI
-    az webapp deploy --resource-group "DefaultResourceGroup-EUS" --name "SafeChatAi" --src-path $deployDir --type zip
-
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "🎉 Deployment completed successfully!" -ForegroundColor Green
-        Write-Host "🌐 App URL: https://safechatai.azurewebsites.net" -ForegroundColor Cyan
-        Write-Host "📡 Socket.io URL: https://safechatai.azurewebsites.net" -ForegroundColor Cyan
-        Write-Host "🔍 Health Check: https://safechatai.azurewebsites.net/health" -ForegroundColor Cyan
-    } else {
-        Write-Host "❌ Deployment failed!" -ForegroundColor Red
-        exit 1
-    }
-} catch {
-    Write-Host "❌ Deployment failed: $_" -ForegroundColor Red
-    exit 1
-} finally {
-    # Clean up
-    if (Test-Path $deployDir) {
-        Remove-Item $deployDir -Recurse -Force
-    }
+# Create web.config if it doesn't exist
+if (-not (Test-Path "web.config")) {
+    Write-Host "Creating web.config..." -ForegroundColor Yellow
+    $webConfigContent = @'
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <system.webServer>
+    <handlers>
+      <add name="iisnode" path="dist/index.js" verb="*" modules="iisnode"/>
+    </handlers>
+    <rewrite>
+      <rules>
+        <rule name="NodeInspector" patternSyntax="ECMAScript" stopProcessing="true">
+          <match url="^dist\/index.js\/debug[\/]?" />
+        </rule>
+        <rule name="StaticContent">
+          <action type="Rewrite" url="public{REQUEST_URI}"/>
+        </rule>
+        <rule name="DynamicContent">
+          <conditions>
+            <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="True"/>
+          </conditions>
+          <action type="Rewrite" url="dist/index.js"/>
+        </rule>
+      </rules>
+    </rewrite>
+    <security>
+      <requestFiltering>
+        <hiddenSegments>
+          <remove segment="bin"/>
+        </hiddenSegments>
+      </requestFiltering>
+    </security>
+    <httpErrors existingResponse="PassThrough" />
+    <iisnode watchedFiles="web.config;*.js"/>
+  </system.webServer>
+</configuration>
+'@
+    $webConfigContent | Out-File -FilePath "$deployDir\web.config" -Encoding utf8
+} else {
+    Copy-Item "web.config" $deployDir
 }
 
-Write-Host "✅ Manual deployment completed!" -ForegroundColor Green
+# Create zip file
+Write-Host "Creating deployment zip..." -ForegroundColor Yellow
+Compress-Archive -Path "$deployDir\*" -DestinationPath "deployment.zip" -Force
+
+# Deploy to Azure
+Write-Host "Deploying to Azure App Service..." -ForegroundColor Yellow
+az webapp deployment source config-zip --name "SafeChatAi" --resource-group "SafeChatAi_group" --src "deployment.zip"
+
+# Clean up
+Remove-Item -Recurse -Force $deployDir
+Write-Host "Deployment complete!" -ForegroundColor Green
