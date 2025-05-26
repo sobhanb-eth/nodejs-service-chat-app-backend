@@ -186,14 +186,15 @@ export class AuthService {
    */
   async isUserGroupMember(userId: string, groupId: string): Promise<boolean> {
     try {
-      if (!ObjectId.isValid(userId) || !ObjectId.isValid(groupId)) {
+      // Validate groupId as ObjectId, but userId is a Clerk string ID
+      if (!ObjectId.isValid(groupId)) {
         return false;
       }
 
       const group = await database.groups.findOne({
         _id: new ObjectId(groupId),
         isActive: true,
-        'members.userId': new ObjectId(userId)
+        'members.userId': userId // Clerk user ID is stored as string
       });
 
       return !!group;
@@ -208,13 +209,14 @@ export class AuthService {
    */
   async getUserGroups(userId: string): Promise<string[]> {
     try {
-      if (!ObjectId.isValid(userId)) {
+      // userId is a Clerk string ID, no need to validate as ObjectId
+      if (!userId || typeof userId !== 'string') {
         return [];
       }
 
       const groups = await database.groups.find({
         isActive: true,
-        'members.userId': new ObjectId(userId)
+        'members.userId': userId // Clerk user ID is stored as string
       }, {
         projection: { _id: 1 }
       }).toArray();

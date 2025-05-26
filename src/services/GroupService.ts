@@ -53,7 +53,7 @@ export class GroupService {
     // If requesting user is provided, check if they're a member
     if (requestingUserId) {
       const isMember = group.members.some(m =>
-        m.userId.toString() === requestingUserId
+        m.userId === requestingUserId // Direct string comparison for Clerk IDs
       );
       if (!isMember && group.isPrivate) {
         return null; // Private group, user not a member
@@ -68,9 +68,9 @@ export class GroupService {
    */
   async getGroups(userId?: string): Promise<Group[]> {
     if (userId) {
-      // Get groups where user is a member
+      // Get groups where user is a member (userId is Clerk string ID)
       return await this.groups.find({
-        'members.userId': new ObjectId(userId),
+        'members.userId': userId,
         isActive: true
       }).toArray();
     } else {
@@ -87,7 +87,7 @@ export class GroupService {
    */
   async getAvailableGroups(userId: string): Promise<Group[]> {
     return await this.groups.find({
-      'members.userId': { $ne: new ObjectId(userId) },
+      'members.userId': { $ne: userId }, // userId is Clerk string ID
       isPrivate: false,
       isActive: true
     }).toArray();
@@ -101,13 +101,13 @@ export class GroupService {
     if (!group) return false;
 
     // Check if adding user has permission
-    const addingMember = group.members.find(m => m.userId.toString() === addedByUserId);
+    const addingMember = group.members.find(m => m.userId === addedByUserId);
     if (!addingMember || (addingMember.role !== 'owner' && addingMember.role !== 'admin')) {
       return false;
     }
 
     // Check if user is already a member
-    const existingMember = group.members.find(m => m.userId.toString() === userId);
+    const existingMember = group.members.find(m => m.userId === userId);
     if (existingMember) return false;
 
     // Add new member
@@ -136,13 +136,13 @@ export class GroupService {
     if (!group) return false;
 
     // Check if removing user has permission
-    const removingMember = group.members.find(m => m.userId.toString() === removedByUserId);
+    const removingMember = group.members.find(m => m.userId === removedByUserId);
     if (!removingMember || (removingMember.role !== 'owner' && removingMember.role !== 'admin')) {
       return false;
     }
 
     // Can't remove owner
-    const memberToRemove = group.members.find(m => m.userId.toString() === userId);
+    const memberToRemove = group.members.find(m => m.userId === userId);
     if (!memberToRemove || memberToRemove.role === 'owner') {
       return false;
     }
@@ -166,7 +166,7 @@ export class GroupService {
     if (!group || group.isPrivate) return false;
 
     // Check if already a member
-    const existingMember = group.members.find(m => m.userId.toString() === userId);
+    const existingMember = group.members.find(m => m.userId === userId);
     if (existingMember) return false;
 
     return await this.addMember(groupId, userId, userId, 'member');
@@ -179,7 +179,7 @@ export class GroupService {
     const group = await this.getGroupById(groupId);
     if (!group) return false;
 
-    const member = group.members.find(m => m.userId.toString() === userId);
+    const member = group.members.find(m => m.userId === userId);
     if (!member) return false;
 
     // Owner cannot leave without transferring ownership
@@ -212,12 +212,12 @@ export class GroupService {
 
     // Verify current owner
     const currentOwner = group.members.find(m =>
-      m.userId.toString() === currentOwnerId && m.role === 'owner'
+      m.userId === currentOwnerId && m.role === 'owner'
     );
     if (!currentOwner) return false;
 
     // Verify new owner is a member
-    const newOwner = group.members.find(m => m.userId.toString() === newOwnerId);
+    const newOwner = group.members.find(m => m.userId === newOwnerId);
     if (!newOwner) return false;
 
     // Update roles
@@ -274,7 +274,7 @@ export class GroupService {
     if (!group) return false;
 
     // Check permissions
-    const member = group.members.find(m => m.userId.toString() === userId);
+    const member = group.members.find(m => m.userId === userId);
     if (!member || (member.role !== 'owner' && member.role !== 'admin')) {
       return false;
     }
@@ -299,7 +299,7 @@ export class GroupService {
     const group = await this.getGroupById(groupId);
     if (!group) return false;
 
-    return group.members.some(m => m.userId.toString() === userId);
+    return group.members.some(m => m.userId === userId);
   }
 
   /**
@@ -309,7 +309,7 @@ export class GroupService {
     const group = await this.getGroupById(groupId);
     if (!group) return null;
 
-    const member = group.members.find(m => m.userId.toString() === userId);
+    const member = group.members.find(m => m.userId === userId);
     return member?.role || null;
   }
 }
