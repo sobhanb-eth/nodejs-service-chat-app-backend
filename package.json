@@ -14,7 +14,7 @@
     "test:watch": "jest --watch --passWithNoTests",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
-    "postinstall": "npm run build"
+    "prestart": "npm run build"
   },
   "keywords": [
     "nodejs",
