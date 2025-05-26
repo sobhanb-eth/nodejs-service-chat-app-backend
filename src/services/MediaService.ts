@@ -34,7 +34,7 @@ export class MediaService {
     this.db = db;
     this.media = db.db('RealTimeChatAiApp').collection<MediaMetadata>('media');
     this.bucketName = process.env.S3_BUCKET_NAME || 'secure-realtime-chat-media-dev';
-    
+
     this.s3Client = new S3Client({
       region: process.env.AWS_DEFAULT_REGION || 'us-east-1',
       credentials: {
@@ -67,17 +67,17 @@ export class MediaService {
       if (file.mimetype.startsWith('image/')) {
         // Compress and resize main image
         processedBuffer = await sharp(file.buffer)
-          .resize(1920, 1080, { 
-            fit: 'inside', 
-            withoutEnlargement: true 
+          .resize(1920, 1080, {
+            fit: 'inside',
+            withoutEnlargement: true
           })
           .jpeg({ quality: 85 })
           .toBuffer();
 
         // Generate thumbnail
         thumbnailBuffer = await sharp(file.buffer)
-          .resize(300, 300, { 
-            fit: 'cover' 
+          .resize(300, 300, {
+            fit: 'cover'
           })
           .jpeg({ quality: 70 })
           .toBuffer();
@@ -214,7 +214,7 @@ export class MediaService {
 
     const url = await this.getSignedUrl(mediaDoc.s3Key);
     let thumbnailUrl: string | undefined;
-    
+
     if (mediaDoc.thumbnailUrl) {
       const thumbnailKey = mediaDoc.s3Key.replace('uploads/', 'thumbnails/');
       thumbnailUrl = await this.getSignedUrl(thumbnailKey);
@@ -222,12 +222,12 @@ export class MediaService {
 
     await this.media.updateOne(
       { _id: new ObjectId(mediaId) },
-      { 
-        $set: { 
-          url, 
+      {
+        $set: {
+          url,
           thumbnailUrl,
-          updatedAt: new Date() 
-        } 
+          updatedAt: new Date()
+        }
       }
     );
 
@@ -250,25 +250,19 @@ export class MediaService {
    */
   validateFile(file: Express.Multer.File): { valid: boolean; error?: string } {
     const maxSize = 10 * 1024 * 1024; // 10MB
-    const allowedTypes = [
+    const allowedImageTypes = [
       'image/jpeg',
       'image/png',
       'image/gif',
       'image/webp',
-      'video/mp4',
-      'video/webm',
-      'audio/mpeg',
-      'audio/wav',
-      'application/pdf',
-      'text/plain',
     ];
 
     if (file.size > maxSize) {
-      return { valid: false, error: 'File size exceeds 10MB limit' };
+      return { valid: false, error: 'Image size exceeds 10MB limit' };
     }
 
-    if (!allowedTypes.includes(file.mimetype)) {
-      return { valid: false, error: 'File type not allowed' };
+    if (!allowedImageTypes.includes(file.mimetype)) {
+      return { valid: false, error: 'Only image files are allowed (JPEG, PNG, GIF, WebP)' };
     }
 
     return { valid: true };

@@ -24,23 +24,18 @@ export default function createMediaRoutes(db: MongoClient): Router {
       fileSize: 10 * 1024 * 1024, // 10MB limit
     },
     fileFilter: (req, file, cb) => {
-      // Allow images, videos, and documents
-      const allowedTypes = [
+      // Allow only images as per requirements
+      const allowedImageTypes = [
         'image/jpeg',
         'image/png',
         'image/gif',
         'image/webp',
-        'video/mp4',
-        'video/webm',
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       ];
 
-      if (allowedTypes.includes(file.mimetype)) {
+      if (allowedImageTypes.includes(file.mimetype)) {
         cb(null, true);
       } else {
-        cb(new Error('Invalid file type'));
+        cb(new Error('Only image files are allowed (JPEG, PNG, GIF, WebP)'));
       }
     },
   });

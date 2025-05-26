@@ -43,9 +43,9 @@ const envSchema = z.object({
   SOCKET_IO_PING_TIMEOUT: z.string().transform(Number).default('60000'),
   SOCKET_IO_PING_INTERVAL: z.string().transform(Number).default('25000'),
 
-  // File Upload Configuration
+  // Image Upload Configuration
   MAX_FILE_SIZE: z.string().transform(Number).default('10485760'), // 10MB
-  ALLOWED_FILE_TYPES: z.string().default('image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,audio/mpeg,audio/wav,application/pdf,text/plain'),
+  ALLOWED_FILE_TYPES: z.string().default('image/jpeg,image/png,image/gif,image/webp'),
 
   // AI Configuration
   AI_MODEL: z.string().default('gpt-3.5-turbo'),

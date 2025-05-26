@@ -40,7 +40,7 @@ export interface MessageResponse {
   groupId: string;
   senderId: string;
   content: string;
-  type: 'text' | 'image' | 'file' | 'system';
+  type: 'text' | 'image' | 'system';
   isDeleted: boolean;
   readBy: Array<{
     userId: string;
@@ -126,7 +126,7 @@ export interface SocketAuthPayload {
 export interface SocketMessagePayload {
   groupId: string;
   content: string;
-  type: 'text' | 'image' | 'file';
+  type: 'text' | 'image';
   tempId?: string;
 }
 

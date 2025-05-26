@@ -41,7 +41,8 @@
     }
   },
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "src/types/multer.d.ts"
   ],
   "exclude": [
     "node_modules",

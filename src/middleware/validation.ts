@@ -101,7 +101,7 @@ export const messageSchemas = {
   create: z.object({
     groupId: commonSchemas.objectId,
     content: z.string().min(1).max(4000).trim(),
-    type: z.enum(['text', 'image', 'file', 'system']).optional().default('text'),
+    type: z.enum(['text', 'image', 'system']).optional().default('text'),
     tempId: z.string().optional(),
   }),
 
@@ -229,7 +229,7 @@ export const socketSchemas = {
   sendMessage: z.object({
     groupId: commonSchemas.objectId,
     content: z.string().min(1).max(4000).trim(),
-    type: z.enum(['text', 'image', 'file']).optional().default('text'),
+    type: z.enum(['text', 'image']).optional().default('text'),
     tempId: z.string().optional(),
   }),
 
@@ -255,22 +255,16 @@ export function validateFile(req: Request, res: Response, next: NextFunction) {
     return next(new ValidationError('File size exceeds 10MB limit'));
   }
 
-  // Check file type
-  const allowedTypes = [
+  // Check file type - only images allowed
+  const allowedImageTypes = [
     'image/jpeg',
     'image/png',
     'image/gif',
     'image/webp',
-    'video/mp4',
-    'video/webm',
-    'audio/mpeg',
-    'audio/wav',
-    'application/pdf',
-    'text/plain',
   ];
 
-  if (!allowedTypes.includes(file.mimetype)) {
-    return next(new ValidationError('File type not allowed'));
+  if (!allowedImageTypes.includes(file.mimetype)) {
+    return next(new ValidationError('Only image files are allowed (JPEG, PNG, GIF, WebP)'));
   }
 
   // Log file upload attempt
