@@ -19,15 +19,13 @@ export class GroupService {
    * Create a new group with owner permissions
    */
   async createGroup(name: string, description: string, ownerId: string): Promise<Group> {
-    const ownerObjectId = new ObjectId(ownerId);
-    
     const group: Group = {
       _id: new ObjectId(),
       name: name.trim(),
       description: description?.trim() || '',
-      ownerId: ownerObjectId,
+      ownerId: ownerId, // Store Clerk user ID as string
       members: [{
-        userId: ownerObjectId,
+        userId: ownerId, // Store Clerk user ID as string
         role: 'owner',
         joinedAt: new Date()
       }],
@@ -45,16 +43,16 @@ export class GroupService {
    * Get group by ID with member validation
    */
   async getGroupById(groupId: string, requestingUserId?: string): Promise<Group | null> {
-    const group = await this.groups.findOne({ 
+    const group = await this.groups.findOne({
       _id: new ObjectId(groupId),
-      isActive: true 
+      isActive: true
     });
 
     if (!group) return null;
 
     // If requesting user is provided, check if they're a member
     if (requestingUserId) {
-      const isMember = group.members.some(m => 
+      const isMember = group.members.some(m =>
         m.userId.toString() === requestingUserId
       );
       if (!isMember && group.isPrivate) {
@@ -114,14 +112,14 @@ export class GroupService {
 
     // Add new member
     const newMember: GroupMember = {
-      userId: new ObjectId(userId),
+      userId: userId, // Use string userId directly
       role,
       joinedAt: new Date()
     };
 
     await this.groups.updateOne(
       { _id: new ObjectId(groupId) },
-      { 
+      {
         $push: { members: newMember },
         $set: { updatedAt: new Date() }
       }
@@ -151,8 +149,8 @@ export class GroupService {
 
     await this.groups.updateOne(
       { _id: new ObjectId(groupId) },
-      { 
-        $pull: { members: { userId: new ObjectId(userId) } },
+      {
+        $pull: { members: { userId: userId } }, // Use string userId directly
         $set: { updatedAt: new Date() }
       }
     );
@@ -196,8 +194,8 @@ export class GroupService {
 
     await this.groups.updateOne(
       { _id: new ObjectId(groupId) },
-      { 
-        $pull: { members: { userId: new ObjectId(userId) } },
+      {
+        $pull: { members: { userId: userId } }, // Use string userId directly
         $set: { updatedAt: new Date() }
       }
     );
@@ -213,7 +211,7 @@ export class GroupService {
     if (!group) return false;
 
     // Verify current owner
-    const currentOwner = group.members.find(m => 
+    const currentOwner = group.members.find(m =>
       m.userId.toString() === currentOwnerId && m.role === 'owner'
     );
     if (!currentOwner) return false;
@@ -225,18 +223,18 @@ export class GroupService {
     // Update roles
     await this.groups.updateOne(
       { _id: new ObjectId(groupId) },
-      { 
+      {
         $set: {
           'members.$[currentOwner].role': 'admin',
           'members.$[newOwner].role': 'owner',
-          ownerId: new ObjectId(newOwnerId),
+          ownerId: newOwnerId, // Use string userId directly
           updatedAt: new Date()
         }
       },
       {
         arrayFilters: [
-          { 'currentOwner.userId': new ObjectId(currentOwnerId) },
-          { 'newOwner.userId': new ObjectId(newOwnerId) }
+          { 'currentOwner.userId': currentOwnerId }, // Use string userId directly
+          { 'newOwner.userId': newOwnerId } // Use string userId directly
         ]
       }
     );
@@ -257,8 +255,8 @@ export class GroupService {
 
     await this.groups.updateOne(
       { _id: new ObjectId(groupId) },
-      { 
-        $set: { 
+      {
+        $set: {
           isActive: false,
           updatedAt: new Date()
         }

@@ -18,7 +18,7 @@ export const config = {
   // Database Configuration
   database: {
     uri: process.env.MONGODB_URI || '',
-    name: process.env.DATABASE_NAME || 'realtime_chat_ai_app',
+    name: process.env.DATABASE_NAME || 'RealTimeChatAiApp',
     password: process.env.DATABASE_PASSWORD || '',
     options: {
       retryWrites: true,

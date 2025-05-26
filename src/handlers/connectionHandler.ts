@@ -12,11 +12,9 @@ import { ObjectId } from 'mongodb';
  */
 async function createTestGroupsForUser(userId: string): Promise<string[]> {
   try {
-    const userObjectId = new ObjectId(userId);
-
-    // Check if user already has groups
+    // Check if user already has groups (userId is already a string - Clerk user ID)
     const existingGroups = await database.groups.find({
-      'members.userId': userObjectId,
+      'members.userId': userId,
       isActive: true
     }).toArray();
 
@@ -39,9 +37,9 @@ async function createTestGroupsForUser(userId: string): Promise<string[]> {
         _id: new ObjectId(),
         name: groupData.name,
         description: groupData.description,
-        ownerId: userObjectId,
+        ownerId: userId, // Use string userId directly
         members: [{
-          userId: userObjectId,
+          userId: userId, // Use string userId directly
           role: 'owner' as const,
           joinedAt: new Date()
         }],

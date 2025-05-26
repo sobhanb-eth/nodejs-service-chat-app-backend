@@ -37,14 +37,13 @@ export class PresenceService {
         throw new Error('Invalid userId');
       }
 
-      const userObjectId = new ObjectId(userId);
       const now = new Date();
 
       // Remove any existing session for this socket
       await this.removeSessionBySocketId(socketId);
 
       const session: Omit<Session, '_id'> = {
-        userId: userObjectId,
+        userId: userId, // Use string userId directly
         socketId,
         status: 'online',
         lastActivity: now,
@@ -60,9 +59,9 @@ export class PresenceService {
         throw new Error('Failed to create session');
       }
 
-      // Update user's last seen
+      // Update user's last seen (find by clerkId since userId is Clerk user ID)
       await database.users.updateOne(
-        { _id: userObjectId },
+        { clerkId: userId },
         {
           $set: {
             lastSeen: now,
@@ -87,9 +86,9 @@ export class PresenceService {
       const session = await database.sessions.findOne({ socketId });
 
       if (session) {
-        // Update user's last seen before removing session
+        // Update user's last seen before removing session (find by clerkId since userId is Clerk user ID)
         await database.users.updateOne(
-          { _id: session.userId },
+          { clerkId: session.userId },
           {
             $set: {
               lastSeen: new Date(),
@@ -257,12 +256,8 @@ export class PresenceService {
    */
   async isUserOnline(userId: string): Promise<boolean> {
     try {
-      if (!ObjectId.isValid(userId)) {
-        return false;
-      }
-
       const session = await database.sessions.findOne({
-        userId: new ObjectId(userId),
+        userId: userId, // Use string userId directly
         status: { $in: ['online', 'away'] },
         lastActivity: {
           $gte: new Date(Date.now() - config.session.timeout),
@@ -281,12 +276,8 @@ export class PresenceService {
    */
   async getUserSessions(userId: string): Promise<Session[]> {
     try {
-      if (!ObjectId.isValid(userId)) {
-        return [];
-      }
-
       const sessions = await database.sessions.find({
-        userId: new ObjectId(userId),
+        userId: userId, // Use string userId directly
         lastActivity: {
           $gte: new Date(Date.now() - config.session.timeout),
         },

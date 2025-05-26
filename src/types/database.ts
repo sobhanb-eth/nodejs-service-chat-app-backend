@@ -28,7 +28,7 @@ export interface User extends BaseEntity {
 export interface Group extends BaseEntity {
   name: string;
   description?: string;
-  ownerId: ObjectId;
+  ownerId: string; // Clerk user ID as string
   members: GroupMember[];
   isPrivate: boolean;
   isActive: boolean;
@@ -36,7 +36,7 @@ export interface Group extends BaseEntity {
 
 // Group Member
 export interface GroupMember {
-  userId: ObjectId;
+  userId: string; // Clerk user ID as string
   role: 'owner' | 'admin' | 'member';
   joinedAt: Date;
 }
@@ -44,7 +44,7 @@ export interface GroupMember {
 // Message Entity
 export interface Message extends BaseEntity {
   groupId: ObjectId;
-  senderId: ObjectId;
+  senderId: string; // Clerk user ID as string
   content: string;
   type: 'text' | 'image' | 'file' | 'system';
   isDeleted: boolean;
@@ -53,13 +53,13 @@ export interface Message extends BaseEntity {
 
 // Message Read Receipt
 export interface MessageRead {
-  userId: ObjectId;
+  userId: string; // Clerk user ID as string
   readAt: Date;
 }
 
 // Session Entity
 export interface Session extends BaseEntity {
-  userId: ObjectId;
+  userId: string; // Clerk user ID as string
   socketId: string;
   status: 'online' | 'away' | 'offline';
   lastActivity: Date;

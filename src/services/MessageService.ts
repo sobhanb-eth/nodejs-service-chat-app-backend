@@ -57,7 +57,7 @@ export class MessageService {
 
       const message: Omit<Message, '_id'> = {
         groupId: new ObjectId(groupId),
-        senderId: new ObjectId(senderId),
+        senderId: senderId, // Use string senderId directly
         content: encryptedContent,
         type,
         isDeleted: false,
@@ -154,17 +154,16 @@ export class MessageService {
    */
   async markMessageAsRead(messageId: string, userId: string): Promise<boolean> {
     try {
-      if (!ObjectId.isValid(messageId) || !ObjectId.isValid(userId)) {
+      if (!ObjectId.isValid(messageId)) {
         return false;
       }
 
-      const userObjectId = new ObjectId(userId);
       const messageObjectId = new ObjectId(messageId);
 
       // Check if already read
       const existingRead = await database.messages.findOne({
         _id: messageObjectId,
-        'readBy.userId': userObjectId,
+        'readBy.userId': userId, // Use string userId directly
       });
 
       if (existingRead) {
@@ -173,7 +172,7 @@ export class MessageService {
 
       // Add read receipt
       const readReceipt: MessageRead = {
-        userId: userObjectId,
+        userId: userId, // Use string userId directly
         readAt: new Date(),
       };
 
@@ -197,22 +196,17 @@ export class MessageService {
    */
   async markMessagesAsRead(messageIds: string[], userId: string): Promise<string[]> {
     try {
-      if (!ObjectId.isValid(userId)) {
-        return [];
-      }
-
       const validMessageIds = messageIds.filter(id => ObjectId.isValid(id));
       if (validMessageIds.length === 0) {
         return [];
       }
 
-      const userObjectId = new ObjectId(userId);
       const messageObjectIds = validMessageIds.map(id => new ObjectId(id));
 
       // Find messages not already read by this user
       const unreadMessages = await database.messages.find({
         _id: { $in: messageObjectIds },
-        'readBy.userId': { $ne: userObjectId },
+        'readBy.userId': { $ne: userId }, // Use string userId directly
         isDeleted: false,
       }).toArray();
 
@@ -221,12 +215,12 @@ export class MessageService {
       }
 
       const readReceipt: MessageRead = {
-        userId: userObjectId,
+        userId: userId, // Use string userId directly
         readAt: new Date(),
       };
 
       // Update all unread messages
-      const result = await database.messages.updateMany(
+      await database.messages.updateMany(
         {
           _id: { $in: unreadMessages.map(msg => msg._id!) },
         },
@@ -251,7 +245,7 @@ export class MessageService {
    */
   async deleteMessage(messageId: string, userId: string): Promise<boolean> {
     try {
-      if (!ObjectId.isValid(messageId) || !ObjectId.isValid(userId)) {
+      if (!ObjectId.isValid(messageId)) {
         return false;
       }
 
@@ -259,7 +253,7 @@ export class MessageService {
       const result = await database.messages.updateOne(
         {
           _id: new ObjectId(messageId),
-          senderId: new ObjectId(userId),
+          senderId: userId, // Use string userId directly
           isDeleted: false,
         },
         {
@@ -303,14 +297,14 @@ export class MessageService {
    */
   async getUnreadMessageCount(groupId: string, userId: string): Promise<number> {
     try {
-      if (!ObjectId.isValid(groupId) || !ObjectId.isValid(userId)) {
+      if (!ObjectId.isValid(groupId)) {
         return 0;
       }
 
       const count = await database.messages.countDocuments({
         groupId: new ObjectId(groupId),
-        'readBy.userId': { $ne: new ObjectId(userId) },
-        senderId: { $ne: new ObjectId(userId) }, // Don't count own messages
+        'readBy.userId': { $ne: userId }, // Use string userId directly
+        senderId: { $ne: userId }, // Use string userId directly - Don't count own messages
         isDeleted: false,
       });
 

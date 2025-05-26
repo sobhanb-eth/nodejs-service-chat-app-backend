@@ -19,17 +19,16 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // For now, skip authentication to get it working quickly
-    // TODO: Add proper authentication later
+    // Authentication is handled by middleware
 
     // Create the group
     const group = {
       _id: new ObjectId(),
       name: name.trim(),
       description: description?.trim() || '',
-      ownerId: new ObjectId(creatorId),
+      ownerId: creatorId, // Store Clerk user ID as string
       members: [{
-        userId: new ObjectId(creatorId),
+        userId: creatorId, // Store Clerk user ID as string
         role: 'owner' as const,
         joinedAt: new Date()
       }],
@@ -49,7 +48,7 @@ router.post('/', async (req, res) => {
         id: group._id.toString(),
         name: group.name,
         description: group.description,
-        ownerId: group.ownerId.toString(),
+        ownerId: group.ownerId, // Already a string
         memberCount: group.members.length,
         createdAt: group.createdAt
       }
@@ -57,6 +56,52 @@ router.post('/', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error creating group:', error);
+    res.status(500).json({
+      error: 'Internal server error'
+    });
+  }
+});
+
+/**
+ * Get user's groups (groups they are members of)
+ * GET /api/groups/my-groups?userId=xxx
+ */
+router.get('/my-groups', async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        error: 'userId is required'
+      });
+    }
+
+    const userIdString = userId as string;
+
+    // Get all groups where user is a member
+    const userGroups = await database.groups.find({
+      isActive: true,
+      'members.userId': userIdString
+    }).toArray();
+
+    const groupsData = userGroups.map(group => ({
+      id: group._id!.toString(),
+      name: group.name,
+      description: group.description,
+      ownerId: group.ownerId,
+      memberCount: group.members.length,
+      isPrivate: group.isPrivate,
+      createdAt: group.createdAt,
+      userRole: group.members.find(m => m.userId === userIdString)?.role || 'member'
+    }));
+
+    res.json({
+      success: true,
+      groups: groupsData
+    });
+
+  } catch (error) {
+    console.error('❌ Error getting user groups:', error);
     res.status(500).json({
       error: 'Internal server error'
     });
@@ -78,11 +123,11 @@ router.get('/discover', async (req, res) => {
     }
 
     // Get all active groups that the user is NOT a member of
-    const userObjectId = new ObjectId(userId as string);
+    const userIdString = userId as string;
 
     const allGroups = await database.groups.find({
       isActive: true,
-      'members.userId': { $ne: userObjectId }
+      'members.userId': { $ne: userIdString }
     }).toArray();
 
     const groupsForDiscovery = allGroups.map(group => ({
@@ -122,7 +167,7 @@ router.post('/:groupId/join', async (req, res) => {
       });
     }
 
-    const userObjectId = new ObjectId(userId);
+    const userIdString = userId;
     const groupObjectId = new ObjectId(groupId);
 
     // Check if group exists
@@ -134,7 +179,7 @@ router.post('/:groupId/join', async (req, res) => {
     }
 
     // Check if user is already a member
-    if (group.members.some(member => member.userId.equals(userObjectId))) {
+    if (group.members.some(member => member.userId === userIdString)) {
       return res.status(400).json({
         error: 'User is already a member of this group'
       });
@@ -142,7 +187,7 @@ router.post('/:groupId/join', async (req, res) => {
 
     // Add user to group
     const newMember = {
-      userId: userObjectId,
+      userId: userIdString, // Store as string
       role: 'member' as const,
       joinedAt: new Date()
     };
@@ -185,7 +230,7 @@ router.post('/:groupId/leave', async (req, res) => {
       });
     }
 
-    const userObjectId = new ObjectId(userId);
+    const userIdString = userId;
     const groupObjectId = new ObjectId(groupId);
 
     // Check if group exists
@@ -197,7 +242,7 @@ router.post('/:groupId/leave', async (req, res) => {
     }
 
     // Check if user is the owner
-    const userMember = group.members.find(member => member.userId.equals(userObjectId));
+    const userMember = group.members.find(member => member.userId === userIdString);
     if (!userMember) {
       return res.status(400).json({
         error: 'User is not a member of this group'
@@ -214,7 +259,7 @@ router.post('/:groupId/leave', async (req, res) => {
     await database.groups.updateOne(
       { _id: groupObjectId },
       {
-        $pull: { members: { userId: userObjectId } },
+        $pull: { members: { userId: userIdString } },
         $set: { updatedAt: new Date() }
       }
     );
