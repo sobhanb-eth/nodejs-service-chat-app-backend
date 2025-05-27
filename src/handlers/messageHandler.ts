@@ -66,15 +66,27 @@ export function handleMessageEvents(
         type,
       });
 
+      // Decrypt message content for frontend
+      let decryptedContent = message.content;
+      try {
+        if (message.type === 'text') {
+          decryptedContent = messageService.getEncryptionService().decryptGroupMessage(message.content, groupId);
+        }
+      } catch (error) {
+        console.error('❌ Error decrypting message for socket:', error);
+        decryptedContent = '[Encrypted Message]';
+      }
+
       // Transform message for frontend - both database and frontend now use Clerk ID
       const transformedMessage = {
         id: message._id?.toString(),
-        content: message.content,
+        content: decryptedContent,
         senderId: message.senderId, // This is now the Clerk ID from database
         senderEmail: user.email,
         timestamp: message.createdAt?.toISOString(),
         roomId: message.groupId.toString(),
         type: message.type, // Add the missing type field
+        readBy: message.readBy || [], // Include read receipts
       };
 
       // Emit success to sender

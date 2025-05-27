@@ -66,6 +66,7 @@ export default function createMessageRoutes(db: MongoClient): Router {
             timestamp: msg.createdAt?.toISOString(),
             roomId: msg.groupId.toString(),
             type: msg.type, // Add the missing type field
+            readBy: msg.readBy || [], // Include read receipts
           };
         })
       );

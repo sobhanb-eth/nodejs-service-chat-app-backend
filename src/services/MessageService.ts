@@ -34,6 +34,13 @@ export class MessageService {
     this.encryptionService = new EncryptionService();
     this.aiService = aiService;
   }
+
+  /**
+   * Get encryption service instance
+   */
+  getEncryptionService(): EncryptionService {
+    return this.encryptionService;
+  }
   /**
    * Create a new message with encryption and AI processing
    */

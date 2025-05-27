@@ -194,12 +194,13 @@ export default function createMediaRoutes(db: MongoClient, io?: SocketIOServer):
               // Transform message for frontend (same format as messageHandler.ts)
               const transformedMessage = {
                 id: message._id?.toString(),
-                content: message.content,
+                content: message.content, // Media messages are not encrypted
                 senderId: message.senderId, // Clerk ID
                 senderEmail: user.email,
                 timestamp: message.createdAt?.toISOString(),
                 roomId: message.groupId.toString(),
                 type: message.type, // 'image'
+                readBy: message.readBy || [], // Include read receipts
               };
 
               // Broadcast new message to group members
