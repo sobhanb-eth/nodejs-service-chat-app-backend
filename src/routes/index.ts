@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { MongoClient } from 'mongodb';
+import { Server as SocketIOServer } from 'socket.io';
 import { authMiddleware } from '../middleware/auth';
 import { rateLimitMiddleware } from '../middleware/rateLimit';
 import { validationMiddleware } from '../middleware/validation';
@@ -16,7 +17,7 @@ import healthRoutes from './health';
 /**
  * Main router configuration
  */
-export function createRoutes(db: MongoClient): Router {
+export function createRoutes(db: MongoClient, io?: SocketIOServer): Router {
   const router = Router();
 
   // Health check routes (no auth required)
@@ -33,7 +34,7 @@ export function createRoutes(db: MongoClient): Router {
   // Protected API routes
   router.use('/groups', groupRoutes); // Direct router export
   router.use('/messages', createMessageRoutes(db)); // Factory function
-  router.use('/media', createMediaRoutes(db)); // Factory function
+  router.use('/media', createMediaRoutes(db, io)); // Factory function with Socket.io
   router.use('/ai', createAIRoutes(db)); // Factory function
 
   // Error handling middleware (must be last)
@@ -45,14 +46,14 @@ export function createRoutes(db: MongoClient): Router {
 /**
  * API versioning
  */
-export function createVersionedRoutes(db: MongoClient): Router {
+export function createVersionedRoutes(db: MongoClient, io?: SocketIOServer): Router {
   const router = Router();
 
   // API v1
-  router.use('/v1', createRoutes(db));
+  router.use('/v1', createRoutes(db, io));
 
   // Default to v1
-  router.use('/', createRoutes(db));
+  router.use('/', createRoutes(db, io));
 
   return router;
 }

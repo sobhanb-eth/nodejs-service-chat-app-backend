@@ -12,6 +12,15 @@ export interface CreateMessagePayload {
   senderId: string;
   content: string;
   type: 'text' | 'image' | 'file' | 'system';
+  mediaUrl?: string; // For image/file messages
+  mediaMetadata?: {
+    filename?: string;
+    originalFilename?: string;
+    size?: number;
+    width?: number;
+    height?: number;
+    thumbnailUrl?: string;
+  };
 }
 
 /**
@@ -30,7 +39,7 @@ export class MessageService {
    */
   async createMessage(payload: CreateMessagePayload): Promise<Message> {
     try {
-      const { groupId, senderId, content, type } = payload;
+      const { groupId, senderId, content, type, mediaUrl, mediaMetadata } = payload;
 
       // Validate groupId as ObjectId, senderId is Clerk user ID string
       if (!ObjectId.isValid(groupId)) {
@@ -42,28 +51,51 @@ export class MessageService {
         throw new Error('Invalid senderId');
       }
 
-      // Validate content
-      if (!content || content.trim().length === 0) {
-        throw new Error('Message content cannot be empty');
+      // Validate content based on message type
+      if (type === 'image' || type === 'file') {
+        // For media messages, content can be empty or contain a caption
+        // The actual media URL is stored separately
+        if (!mediaUrl) {
+          throw new Error('Media URL is required for image/file messages');
+        }
+      } else {
+        // For text messages, content is required
+        if (!content || content.trim().length === 0) {
+          throw new Error('Message content cannot be empty');
+        }
+
+        if (content.length > 4000) { // 4KB limit
+          throw new Error('Message content too long');
+        }
+
+        // Moderate content using AI (only for text content)
+        const moderation = await this.aiService.moderateContent(content);
+        if (!moderation.isAppropriate) {
+          throw new Error(`Message rejected: ${moderation.reason}`);
+        }
       }
 
-      if (content.length > 4000) { // 4KB limit
-        throw new Error('Message content too long');
-      }
+      // Prepare message content based on type
+      let messageContent: string;
 
-      // Moderate content using AI
-      const moderation = await this.aiService.moderateContent(content);
-      if (!moderation.isAppropriate) {
-        throw new Error(`Message rejected: ${moderation.reason}`);
+      if (type === 'image' || type === 'file') {
+        // For media messages, store a JSON structure with media info
+        const mediaInfo = {
+          url: mediaUrl,
+          caption: content?.trim() || '',
+          metadata: mediaMetadata || {}
+        };
+        messageContent = JSON.stringify(mediaInfo);
+        // Don't encrypt media URLs as they need to be accessible
+      } else {
+        // For text messages, encrypt the content
+        messageContent = this.encryptionService.encryptGroupMessage(content.trim(), groupId);
       }
-
-      // Encrypt message content
-      const encryptedContent = this.encryptionService.encryptGroupMessage(content.trim(), groupId);
 
       const message: Omit<Message, '_id'> = {
         groupId: new ObjectId(groupId),
         senderId: senderId, // Use string senderId directly
-        content: encryptedContent,
+        content: messageContent,
         type,
         isDeleted: false,
         readBy: [],
@@ -79,11 +111,19 @@ export class MessageService {
       }
 
       // Store message with vector embedding for AI features (async)
-      this.aiService.storeMessageWithEmbedding(createdMessage).catch(error => {
+      // For media messages, use the caption for AI processing
+      const contentForAI = type === 'image' || type === 'file'
+        ? (content?.trim() || `[${type} message]`)
+        : createdMessage.content;
+
+      this.aiService.storeMessageWithEmbedding({
+        ...createdMessage,
+        content: contentForAI
+      }).catch(error => {
         console.error('Error storing message embedding:', error);
       });
 
-      console.log(`✅ Created encrypted message: ${createdMessage._id} in group: ${groupId}`);
+      console.log(`✅ Created ${type} message: ${createdMessage._id} in group: ${groupId}`);
       return createdMessage;
     } catch (error) {
       console.error('❌ Error creating message:', error);
@@ -120,13 +160,19 @@ export class MessageService {
         .limit(Math.min(limit, 100)) // Cap at 100 messages
         .toArray();
 
-      // Decrypt message contents
+      // Decrypt message contents based on type
       const decryptedMessages = messages.map(message => {
         try {
-          const decryptedContent = this.encryptionService.decryptGroupMessage(message.content, groupId);
-          return { ...message, content: decryptedContent };
+          if (message.type === 'image' || message.type === 'file') {
+            // Media messages are stored as JSON, no decryption needed
+            return message;
+          } else {
+            // Text messages need decryption
+            const decryptedContent = this.encryptionService.decryptGroupMessage(message.content, groupId);
+            return { ...message, content: decryptedContent };
+          }
         } catch (error) {
-          console.error('Error decrypting message:', error);
+          console.error('Error processing message:', error);
           return { ...message, content: '[Encrypted Message]' };
         }
       });
@@ -136,6 +182,34 @@ export class MessageService {
       console.error('❌ Error getting group messages:', error);
       throw error;
     }
+  }
+
+  /**
+   * Create a media message with uploaded file
+   */
+  async createMediaMessage(
+    groupId: string,
+    senderId: string,
+    mediaUrl: string,
+    type: 'image' | 'file',
+    caption?: string,
+    mediaMetadata?: {
+      filename?: string;
+      originalFilename?: string;
+      size?: number;
+      width?: number;
+      height?: number;
+      thumbnailUrl?: string;
+    }
+  ): Promise<Message> {
+    return this.createMessage({
+      groupId,
+      senderId,
+      content: caption || '',
+      type,
+      mediaUrl,
+      mediaMetadata,
+    });
   }
 
   /**

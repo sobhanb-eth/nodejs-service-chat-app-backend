@@ -57,7 +57,7 @@ export default function createMessageRoutes(db: MongoClient): Router {
         messages.map(async (msg) => {
           // senderId is now the Clerk ID, but we still need to get user email
           const user = await authService.getUserByClerkId(msg.senderId);
-          
+
           return {
             id: msg._id?.toString(),
             content: msg.content,
@@ -65,12 +65,13 @@ export default function createMessageRoutes(db: MongoClient): Router {
             senderEmail: user?.email || 'Unknown User',
             timestamp: msg.createdAt?.toISOString(),
             roomId: msg.groupId.toString(),
+            type: msg.type, // Add the missing type field
           };
         })
       );
 
       // Sort messages by timestamp (oldest first)
-      transformedMessages.sort((a, b) => 
+      transformedMessages.sort((a, b) =>
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
       );
 

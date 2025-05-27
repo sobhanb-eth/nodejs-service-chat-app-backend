@@ -74,6 +74,7 @@ export function handleMessageEvents(
         senderEmail: user.email,
         timestamp: message.createdAt?.toISOString(),
         roomId: message.groupId.toString(),
+        type: message.type, // Add the missing type field
       };
 
       // Emit success to sender

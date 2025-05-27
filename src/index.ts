@@ -68,11 +68,11 @@ class RealTimeService {
       // Setup Express middleware
       this.setupMiddleware();
 
-      // Setup routes
-      this.setupRoutes();
-
-      // Setup Socket.io
+      // Setup Socket.io BEFORE routes so this.io is available
       this.setupSocketIO();
+
+      // Setup routes (now this.io is available for media routes)
+      this.setupRoutes();
 
       // Start typing cleanup
       this.typingCleanupInterval = startTypingCleanup();
@@ -118,8 +118,8 @@ class RealTimeService {
    * Setup Express routes
    */
   private setupRoutes(): void {
-    // API routes with full integration
-    this.app.use('/api', createVersionedRoutes(database.getClient()));
+    // API routes with full integration - pass Socket.io instance for real-time features
+    this.app.use('/api', createVersionedRoutes(database.getClient(), this.io));
 
     // Health check endpoint
     this.app.get('/health', async (req, res) => {

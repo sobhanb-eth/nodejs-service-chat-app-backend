@@ -37,6 +37,26 @@ interface ProfilePictureMetadata {
   updatedAt: Date;
 }
 
+interface ChatMediaMetadata {
+  _id?: ObjectId;
+  messageId?: string;
+  groupId: string;
+  uploaderId: string;
+  filename: string;
+  originalFilename: string;
+  mimeType: string;
+  size: number;
+  s3Key: string;
+  s3Bucket: string;
+  url: string;
+  thumbnailUrl?: string;
+  width?: number;
+  height?: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 /**
  * Media Service for AWS S3 file upload and management
  */
@@ -45,12 +65,14 @@ export class MediaService {
   private db: MongoClient;
   private media: Collection<MediaMetadata>;
   private profilePictures: Collection<ProfilePictureMetadata>;
+  private chatMedia: Collection<ChatMediaMetadata>;
   private bucketName: string;
 
   constructor(db: MongoClient) {
     this.db = db;
     this.media = db.db('RealTimeChatAiApp').collection<MediaMetadata>('media');
     this.profilePictures = db.db('RealTimeChatAiApp').collection<ProfilePictureMetadata>('profile_pictures');
+    this.chatMedia = db.db('RealTimeChatAiApp').collection<ChatMediaMetadata>('chat_media');
     this.bucketName = process.env.S3_BUCKET_NAME || 'secure-realtime-chat-media-dev';
 
     // Validate AWS credentials
@@ -125,7 +147,7 @@ export class MediaService {
       const timestamp = Date.now();
       const hash = createHash('md5').update(file.buffer).digest('hex').substring(0, 8);
       const filename = `profile-${userId}-${timestamp}-${hash}.jpg`;
-      
+
       // S3 keys for profile pictures
       const profileKey = `profile-pictures/${userId}/${filename}`;
       const thumbnailKey = `profile-pictures/${userId}/thumb-${filename}`;
@@ -136,7 +158,7 @@ export class MediaService {
           fit: 'cover',
           position: 'center'
         })
-        .jpeg({ 
+        .jpeg({
           quality: 90,
           progressive: true,
           mozjpeg: true
@@ -149,7 +171,7 @@ export class MediaService {
           fit: 'cover',
           position: 'center'
         })
-        .jpeg({ 
+        .jpeg({
           quality: 85,
           progressive: true,
           mozjpeg: true
@@ -258,12 +280,12 @@ export class MediaService {
         // Update database
         await this.profilePictures.updateOne(
           { _id: profilePicture._id },
-          { 
-            $set: { 
-              url: profileUrl, 
-              thumbnailUrl, 
-              updatedAt: new Date() 
-            } 
+          {
+            $set: {
+              url: profileUrl,
+              thumbnailUrl,
+              updatedAt: new Date()
+            }
           }
         );
 
@@ -380,6 +402,182 @@ export class MediaService {
     } catch (error) {
       console.error('Error cleaning up old profile pictures:', error);
     }
+  }
+
+  /**
+   * Upload chat media (images) to S3 with optimization
+   */
+  async uploadChatMedia(
+    file: Express.Multer.File,
+    uploaderId: string,
+    groupId: string
+  ): Promise<ChatMediaMetadata> {
+    try {
+      // Validate file
+      const validation = this.validateChatMedia(file);
+      if (!validation.valid) {
+        throw new Error(validation.error);
+      }
+
+      // Generate unique filename
+      const timestamp = Date.now();
+      const hash = createHash('md5').update(file.buffer).digest('hex').substring(0, 8);
+      const extension = file.originalname.split('.').pop()?.toLowerCase() || 'jpg';
+      const filename = `chat-${uploaderId}-${timestamp}-${hash}.${extension}`;
+      const s3Key = `chat-media/${groupId}/${filename}`;
+      const thumbnailKey = `chat-media/${groupId}/thumb-${filename}`;
+
+      let processedBuffer = file.buffer;
+      let thumbnailBuffer: Buffer | null = null;
+      let width: number | undefined;
+      let height: number | undefined;
+
+      // Process image with Sharp
+      if (file.mimetype.startsWith('image/')) {
+        const image = sharp(file.buffer);
+        const metadata = await image.metadata();
+
+        width = metadata.width;
+        height = metadata.height;
+
+        // Compress and resize main image (max 1920x1080)
+        processedBuffer = await image
+          .resize(1920, 1080, {
+            fit: 'inside',
+            withoutEnlargement: true
+          })
+          .jpeg({
+            quality: 85,
+            progressive: true,
+            mozjpeg: true
+          })
+          .toBuffer();
+
+        // Generate thumbnail (300x300)
+        thumbnailBuffer = await image
+          .resize(300, 300, {
+            fit: 'cover',
+            position: 'center'
+          })
+          .jpeg({
+            quality: 75,
+            progressive: true
+          })
+          .toBuffer();
+      }
+
+      // Upload main image to S3
+      const uploadCommand = new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: s3Key,
+        Body: processedBuffer,
+        ContentType: 'image/jpeg',
+        CacheControl: 'public, max-age=86400', // 24 hours
+        Metadata: {
+          originalName: file.originalname,
+          uploaderId: uploaderId,
+          groupId: groupId,
+          type: 'chat-media',
+          uploadDate: new Date().toISOString(),
+        },
+      });
+
+      await this.s3Client.send(uploadCommand);
+
+      // Upload thumbnail if generated
+      let thumbnailUrl: string | undefined;
+      if (thumbnailBuffer) {
+        const thumbnailUploadCommand = new PutObjectCommand({
+          Bucket: this.bucketName,
+          Key: thumbnailKey,
+          Body: thumbnailBuffer,
+          ContentType: 'image/jpeg',
+          CacheControl: 'public, max-age=86400',
+          Metadata: {
+            originalName: file.originalname,
+            uploaderId: uploaderId,
+            groupId: groupId,
+            type: 'chat-thumbnail',
+            uploadDate: new Date().toISOString(),
+          },
+        });
+
+        await this.s3Client.send(thumbnailUploadCommand);
+        thumbnailUrl = await this.getSignedUrl(thumbnailKey, 86400);
+      }
+
+      // Generate signed URL for main image
+      const url = await this.getSignedUrl(s3Key, 86400);
+
+      // Save metadata to database
+      const chatMediaMetadata: ChatMediaMetadata = {
+        _id: new ObjectId(),
+        groupId,
+        uploaderId,
+        filename,
+        originalFilename: file.originalname,
+        mimeType: 'image/jpeg',
+        size: processedBuffer.length,
+        s3Key,
+        s3Bucket: this.bucketName,
+        url,
+        thumbnailUrl,
+        width,
+        height,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const result = await this.chatMedia.insertOne(chatMediaMetadata);
+      const createdMedia = await this.chatMedia.findOne({ _id: result.insertedId });
+
+      if (!createdMedia) {
+        throw new Error('Failed to save chat media metadata');
+      }
+
+      console.log(`✅ Chat media uploaded successfully: ${filename}`);
+      return createdMedia;
+
+    } catch (error) {
+      console.error('Error uploading chat media:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Validate chat media file
+   */
+  validateChatMedia(file: Express.Multer.File): { valid: boolean; error?: string } {
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    const allowedImageTypes = [
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+    ];
+
+    if (file.size > maxSize) {
+      return { valid: false, error: 'Image size exceeds 10MB limit' };
+    }
+
+    if (!allowedImageTypes.includes(file.mimetype)) {
+      return { valid: false, error: 'Only image files are allowed (JPEG, PNG, GIF, WebP)' };
+    }
+
+    return { valid: true };
+  }
+
+  /**
+   * Get chat media by group ID
+   */
+  async getChatMediaByGroup(groupId: string, limit: number = 50): Promise<ChatMediaMetadata[]> {
+    return await this.chatMedia
+      .find({ groupId, isActive: true })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .toArray();
   }
 
   /**
