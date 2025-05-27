@@ -279,4 +279,209 @@ router.post('/:groupId/leave', async (req, res) => {
   }
 });
 
+/**
+ * Transfer ownership of a group
+ * POST /api/groups/:groupId/transfer-ownership
+ */
+router.post('/:groupId/transfer-ownership', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { currentOwnerId, newOwnerId } = req.body;
+
+    if (!currentOwnerId || !newOwnerId) {
+      return res.status(400).json({
+        error: 'currentOwnerId and newOwnerId are required'
+      });
+    }
+
+    const groupObjectId = new ObjectId(groupId);
+
+    // Check if group exists
+    const group = await database.groups.findOne({ _id: groupObjectId, isActive: true });
+    if (!group) {
+      return res.status(404).json({
+        error: 'Group not found'
+      });
+    }
+
+    // Verify current user is the owner
+    if (group.ownerId !== currentOwnerId) {
+      return res.status(403).json({
+        error: 'Only the current owner can transfer ownership'
+      });
+    }
+
+    // Check if new owner is a member of the group
+    const newOwnerMember = group.members.find(member => member.userId === newOwnerId);
+    if (!newOwnerMember) {
+      return res.status(400).json({
+        error: 'New owner must be a member of the group'
+      });
+    }
+
+    // Update group ownership and member roles
+    await database.groups.updateOne(
+      { _id: groupObjectId },
+      {
+        $set: {
+          ownerId: newOwnerId,
+          updatedAt: new Date(),
+          'members.$[currentOwner].role': 'member',
+          'members.$[newOwner].role': 'owner'
+        }
+      },
+      {
+        arrayFilters: [
+          { 'currentOwner.userId': currentOwnerId },
+          { 'newOwner.userId': newOwnerId }
+        ]
+      }
+    );
+
+    console.log(`✅ Ownership transferred from ${currentOwnerId} to ${newOwnerId} for group ${groupId}`);
+
+    res.json({
+      success: true,
+      message: 'Ownership transferred successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error transferring ownership:', error);
+    res.status(500).json({
+      error: 'Internal server error'
+    });
+  }
+});
+
+/**
+ * Delete a group (owner only)
+ * DELETE /api/groups/:groupId
+ */
+router.delete('/:groupId', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({
+        error: 'userId is required'
+      });
+    }
+
+    const groupObjectId = new ObjectId(groupId);
+
+    // Check if group exists
+    const group = await database.groups.findOne({ _id: groupObjectId, isActive: true });
+    if (!group) {
+      return res.status(404).json({
+        error: 'Group not found'
+      });
+    }
+
+    // Verify user is the owner
+    if (group.ownerId !== userId) {
+      return res.status(403).json({
+        error: 'Only the group owner can delete the group'
+      });
+    }
+
+    // Soft delete the group
+    await database.groups.updateOne(
+      { _id: groupObjectId },
+      {
+        $set: {
+          isActive: false,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    console.log(`✅ Group ${groupId} deleted by owner ${userId}`);
+
+    res.json({
+      success: true,
+      message: 'Group deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error deleting group:', error);
+    res.status(500).json({
+      error: 'Internal server error'
+    });
+  }
+});
+
+/**
+ * Get group members with user details
+ * GET /api/groups/:groupId/members
+ */
+router.get('/:groupId/members', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        error: 'userId is required'
+      });
+    }
+
+    const groupObjectId = new ObjectId(groupId);
+
+    // Check if group exists
+    const group = await database.groups.findOne({ _id: groupObjectId, isActive: true });
+    if (!group) {
+      return res.status(404).json({
+        error: 'Group not found'
+      });
+    }
+
+    // Check if user is a member of the group
+    const userMember = group.members.find(member => member.userId === userId as string);
+    if (!userMember) {
+      return res.status(403).json({
+        error: 'You must be a member of the group to view members'
+      });
+    }
+
+    // Get user details for all members
+    const memberUserIds = group.members.map(member => member.userId);
+    const users = await database.users.find({
+      clerkId: { $in: memberUserIds },
+      isActive: true
+    }).toArray();
+
+    // Combine member data with user details
+    const membersData = group.members.map(member => {
+      const userDetails = users.find(user => user.clerkId === member.userId);
+      return {
+        userId: member.userId,
+        role: member.role,
+        joinedAt: member.joinedAt,
+        name: userDetails?.firstName || '',
+        email: userDetails?.email || '',
+        username: userDetails?.username || '',
+        profileImageUrl: userDetails?.profileImageUrl || null
+      };
+    });
+
+    res.json({
+      success: true,
+      members: membersData,
+      groupInfo: {
+        id: group._id!.toString(),
+        name: group.name,
+        ownerId: group.ownerId,
+        memberCount: group.members.length
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error getting group members:', error);
+    res.status(500).json({
+      error: 'Internal server error'
+    });
+  }
+});
+
 export default router;

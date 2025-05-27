@@ -9,7 +9,6 @@ import { config, validateEnvironment } from './config/environment';
 import { database } from './config/database';
 import { createSocketServer } from './config/socket';
 import { createAuthMiddleware } from './middleware/auth';
-
 // Services
 import { AuthService } from './services/AuthService';
 import { MessageService } from './services/MessageService';
@@ -214,7 +213,7 @@ class RealTimeService {
     this.io = createSocketServer(this.server);
 
     // Setup authentication middleware
-    this.io.use(createAuthMiddleware(this.authService));
+      this.io.use(createAuthMiddleware(this.authService));
 
     // Handle socket connections
     this.io.on('connection', (socket: any) => {

@@ -3,6 +3,7 @@ import { MongoClient } from 'mongodb';
 import { MessageService } from '../services/MessageService';
 import { AIService } from '../services/AIService';
 import { GroupService } from '../services/GroupService';
+import { AuthService } from '../services/AuthService';
 import { validateSchema } from '../middleware/validation';
 import { messageSchemas, commonSchemas } from '../middleware/validation';
 import { messageRateLimitMiddleware } from '../middleware/rateLimit';
@@ -19,6 +20,7 @@ export default function createMessageRoutes(db: MongoClient): Router {
   const aiService = new AIService(db);
   const messageService = new MessageService(aiService);
   const groupService = new GroupService(db);
+  const authService = new AuthService();
 
   /**
    * Get messages for a group
@@ -38,7 +40,7 @@ export default function createMessageRoutes(db: MongoClient): Router {
         });
       }
 
-      // Check if user is member of group
+      // Check if user is member of group (use Clerk ID for membership check)
       const isMember = await groupService.isUserMember(groupId, userId);
       if (!isMember) {
         return res.status(403).json({
@@ -49,9 +51,32 @@ export default function createMessageRoutes(db: MongoClient): Router {
 
       const messages = await messageService.getGroupMessages(groupId, limit, before);
 
+      // Transform messages to match frontend interface
+      // Note: senderId is now stored as Clerk ID directly
+      const transformedMessages = await Promise.all(
+        messages.map(async (msg) => {
+          // senderId is now the Clerk ID, but we still need to get user email
+          const user = await authService.getUserByClerkId(msg.senderId);
+          
+          return {
+            id: msg._id?.toString(),
+            content: msg.content,
+            senderId: msg.senderId, // This is now the Clerk ID
+            senderEmail: user?.email || 'Unknown User',
+            timestamp: msg.createdAt?.toISOString(),
+            roomId: msg.groupId.toString(),
+          };
+        })
+      );
+
+      // Sort messages by timestamp (oldest first)
+      transformedMessages.sort((a, b) => 
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+
       res.json({
         success: true,
-        messages,
+        messages: transformedMessages,
       });
     })
   );
@@ -65,7 +90,7 @@ export default function createMessageRoutes(db: MongoClient): Router {
     validateSchema(messageSchemas.create),
     asyncHandler(async (req: AuthenticatedRequest, res) => {
       const { groupId, content, type, tempId } = req.body;
-      const userId = req.user?.id;
+      const userId = req.user?.clerkId; // Use Clerk ID consistently
 
       if (!userId) {
         return res.status(401).json({
@@ -74,7 +99,7 @@ export default function createMessageRoutes(db: MongoClient): Router {
         });
       }
 
-      // Check if user is member of group
+      // Check if user is member of group (use Clerk ID for membership check)
       const isMember = await groupService.isUserMember(groupId, userId);
       if (!isMember) {
         return res.status(403).json({
@@ -85,7 +110,7 @@ export default function createMessageRoutes(db: MongoClient): Router {
 
       const message = await messageService.createMessage({
         groupId,
-        senderId: userId,
+        senderId: userId, // Store Clerk ID directly
         content,
         type: type || 'text',
       });
@@ -95,7 +120,7 @@ export default function createMessageRoutes(db: MongoClient): Router {
         message: {
           id: message._id?.toString(),
           groupId: message.groupId.toString(),
-          senderId: message.senderId.toString(),
+          senderId: message.senderId, // This is now the Clerk ID
           content: message.content,
           type: message.type,
           tempId,
@@ -114,7 +139,7 @@ export default function createMessageRoutes(db: MongoClient): Router {
     asyncHandler(async (req: AuthenticatedRequest, res) => {
       const { messageId } = req.params;
       const { content } = req.body;
-      const userId = req.user?.id;
+      const userId = req.user?.clerkId; // Use Clerk ID consistently
 
       if (!userId) {
         return res.status(401).json({
@@ -147,7 +172,7 @@ export default function createMessageRoutes(db: MongoClient): Router {
   router.delete('/:messageId',
     asyncHandler(async (req: AuthenticatedRequest, res) => {
       const { messageId } = req.params;
-      const userId = req.user?.id;
+      const userId = req.user?.clerkId; // Use Clerk ID consistently
 
       if (!userId) {
         return res.status(401).json({
@@ -180,7 +205,7 @@ export default function createMessageRoutes(db: MongoClient): Router {
     validateSchema(messageSchemas.markRead),
     asyncHandler(async (req: AuthenticatedRequest, res) => {
       const { messageIds } = req.body;
-      const userId = req.user?.id;
+      const userId = req.user?.clerkId; // Use Clerk ID consistently
 
       if (!userId) {
         return res.status(401).json({
@@ -213,7 +238,7 @@ export default function createMessageRoutes(db: MongoClient): Router {
     validateSchema(messageSchemas.smartReply),
     asyncHandler(async (req: AuthenticatedRequest, res) => {
       const { messageContent, groupId } = req.body;
-      const userId = req.user?.id;
+      const userId = req.user?.clerkId; // Use Clerk ID consistently
 
       if (!userId) {
         return res.status(401).json({
@@ -222,7 +247,7 @@ export default function createMessageRoutes(db: MongoClient): Router {
         });
       }
 
-      // Check if user is member of group
+      // Check if user is member of group (use Clerk ID for membership check)
       const isMember = await groupService.isUserMember(groupId, userId);
       if (!isMember) {
         return res.status(403).json({

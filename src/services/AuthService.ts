@@ -23,6 +23,16 @@ interface ClerkJWTPayload {
 }
 
 /**
+ * Profile update interface
+ */
+interface ProfileUpdateData {
+  firstName?: string;
+  lastName?: string;
+  username?: string;
+  profileImageUrl?: string;
+}
+
+/**
  * Authentication service for JWT validation and user management
  */
 export class AuthService {
@@ -48,16 +58,30 @@ export class AuthService {
       let user = await database.users.findOne({ clerkId });
 
       if (user) {
-        // Update existing user with latest data from JWT
+        // For existing users, only update fields that should be synced from Clerk
+        // Preserve MongoDB-managed fields like firstName, lastName, and username
         const updateData: Partial<User> = {
-          email,
-          firstName,
-          lastName,
-          username,
-          profileImageUrl,
+          email, // Always sync email from Clerk
           lastSeen: new Date(),
           updatedAt: new Date(),
         };
+
+        // Only update profileImageUrl if it's provided in JWT
+        if (profileImageUrl) {
+          updateData.profileImageUrl = profileImageUrl;
+        }
+
+        // Only sync firstName/lastName from Clerk if they don't exist in MongoDB and are provided in JWT
+        // This is for backward compatibility with users who might have these set in Clerk initially
+        if (!user.firstName && firstName) {
+          updateData.firstName = firstName;
+        }
+        if (!user.lastName && lastName) {
+          updateData.lastName = lastName;
+        }
+        if (!user.username && username) {
+          updateData.username = username;
+        }
 
         await database.users.updateOne(
           { _id: user._id },
@@ -68,7 +92,7 @@ export class AuthService {
         user = await database.users.findOne({ _id: user._id });
         console.log(`✅ Updated existing user from JWT: ${email} (${clerkId})`);
       } else {
-        // Create new user
+        // Create new user - use JWT data for initial setup
         const newUser: Omit<User, '_id'> = {
           clerkId,
           email,
@@ -128,6 +152,66 @@ export class AuthService {
       return user;
     } catch (error) {
       console.error('❌ Error getting user by Clerk ID:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get user by username
+   */
+  async getUserByUsername(username: string): Promise<User | null> {
+    try {
+      if (!username) {
+        return null;
+      }
+
+      const user = await database.users.findOne({
+        username: username.toLowerCase(), // Store usernames in lowercase for consistency
+        isActive: true
+      });
+
+      return user;
+    } catch (error) {
+      console.error('❌ Error getting user by username:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update user profile
+   */
+  async updateUserProfile(clerkId: string, updateData: ProfileUpdateData): Promise<User | null> {
+    try {
+      if (!clerkId) {
+        throw new Error('Clerk ID is required');
+      }
+
+      // Prepare update data
+      const updateFields: Partial<User> = {
+        updatedAt: new Date(),
+        ...updateData
+      };
+
+      // Convert username to lowercase for consistency
+      if (updateData.username) {
+        updateFields.username = updateData.username.toLowerCase();
+      }
+
+      // Update the user
+      const result = await database.users.findOneAndUpdate(
+        { clerkId, isActive: true },
+        { $set: updateFields },
+        { returnDocument: 'after' }
+      );
+
+      if (!result) {
+        throw new Error('User not found or update failed');
+      }
+
+      console.log(`✅ Updated user profile: ${clerkId}`);
+      return result;
+    } catch (error) {
+      console.error('❌ Error updating user profile:', error);
       throw error;
     }
   }

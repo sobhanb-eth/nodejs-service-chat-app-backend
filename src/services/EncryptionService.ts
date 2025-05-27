@@ -1,4 +1,4 @@
-import { createCipher, createDecipher, randomBytes, createHash } from 'crypto';
+import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'crypto';
 
 /**
  * Encryption Service for AES-128 message encryption
@@ -35,8 +35,11 @@ export class EncryptionService {
       // Generate random initialization vector
       const iv = randomBytes(16);
       
+      // Ensure key is 16 bytes for AES-128
+      const key = Buffer.from(this.secretKey, 'utf8').slice(0, 16);
+      
       // Create cipher
-      const cipher = createCipher(this.algorithm, this.secretKey);
+      const cipher = createCipheriv(this.algorithm, key, iv);
       
       // Encrypt the text
       let encrypted = cipher.update(text, 'utf8', 'hex');
@@ -57,8 +60,14 @@ export class EncryptionService {
    */
   decrypt(encryptedData: { encrypted: string; iv: string }): string {
     try {
+      // Ensure key is 16 bytes for AES-128
+      const key = Buffer.from(this.secretKey, 'utf8').slice(0, 16);
+      
+      // Convert IV from hex string to buffer
+      const iv = Buffer.from(encryptedData.iv, 'hex');
+      
       // Create decipher
-      const decipher = createDecipher(this.algorithm, this.secretKey);
+      const decipher = createDecipheriv(this.algorithm, key, iv);
       
       // Decrypt the text
       let decrypted = decipher.update(encryptedData.encrypted, 'hex', 'utf8');
@@ -199,7 +208,11 @@ export class EncryptionService {
   encryptGroupMessage(content: string, groupId: string): string {
     const groupKey = this.generateGroupKey(groupId);
     const iv = randomBytes(16);
-    const cipher = createCipher(this.algorithm, groupKey);
+    
+    // Ensure key is 16 bytes for AES-128
+    const key = Buffer.from(groupKey, 'utf8').slice(0, 16);
+    
+    const cipher = createCipheriv(this.algorithm, key, iv);
     
     let encrypted = cipher.update(content, 'utf8', 'hex');
     encrypted += cipher.final('hex');
@@ -224,7 +237,14 @@ export class EncryptionService {
       }
       
       const groupKey = this.generateGroupKey(groupId);
-      const decipher = createDecipher(this.algorithm, groupKey);
+      
+      // Ensure key is 16 bytes for AES-128
+      const key = Buffer.from(groupKey, 'utf8').slice(0, 16);
+      
+      // Convert IV from hex string to buffer
+      const iv = Buffer.from(encryptedData.iv, 'hex');
+      
+      const decipher = createDecipheriv(this.algorithm, key, iv);
       
       let decrypted = decipher.update(encryptedData.encrypted, 'hex', 'utf8');
       decrypted += decipher.final('utf8');

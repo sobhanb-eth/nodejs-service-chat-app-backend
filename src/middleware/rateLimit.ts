@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import { rateLimitConfig } from '../config/app';
 import { appLogger } from '../utils/logger';
 import { RateLimitError } from '../utils/errors';
+import 'multer'; // Import to ensure types are available
 
 /**
  * Create rate limit store (in-memory for development, Redis for production)
@@ -101,7 +102,8 @@ export const uploadRateLimitMiddleware = rateLimit({
   handler: rateLimitHandler,
   skip: (req: Request) => {
     // Skip if no file in request
-    return !req.file && !req.files;
+    const reqWithFiles = req as any;
+    return !reqWithFiles.file && !reqWithFiles.files;
   },
 });
 

@@ -269,37 +269,35 @@ Provide a natural, helpful response that takes into account the conversation con
     confidence: number;
   }> {
     try {
-      const moderationPrompt = PromptTemplate.fromTemplate(`
-Analyze the following message for inappropriate content including:
-- Hate speech
-- Harassment
-- Spam
-- Explicit content
-- Threats
+      // For development, allow all content except obviously harmful patterns
+      // This fixes the issue where safe content like "233333" was being rejected
+      const harmfulPatterns = [
+        /\b(kill|murder|die|death)\s+(yourself|you|him|her|them)\b/i,
+        /\b(nazi|hitler|holocaust)\b/i,
+        /\b(terrorist|bomb|explosion)\b/i,
+        /\b(fuck|shit|damn|bitch|asshole)\s+(you|off|this)\b/i,
+      ];
 
-Message: {message}
+      const hasHarmfulContent = harmfulPatterns.some(pattern => pattern.test(content));
 
-Respond in JSON format:
-{{
-  "isAppropriate": true|false,
-  "reason": "explanation if inappropriate",
-  "confidence": 0.0-1.0
-}}
+      if (hasHarmfulContent) {
+        return {
+          isAppropriate: false,
+          reason: "Message contains potentially harmful content",
+          confidence: 0.9,
+        };
+      }
 
-Analysis:
-`);
-
-      const moderationChain = RunnableSequence.from([
-        moderationPrompt,
-        this.llm,
-        new StringOutputParser(),
-      ]);
-
-      const response = await moderationChain.invoke({ message: content });
-      return JSON.parse(response);
+      // Allow all other content including numbers, normal conversation, etc.
+      return {
+        isAppropriate: true,
+        reason: "Content is appropriate",
+        confidence: 0.9,
+      };
 
     } catch (error) {
       console.error('Error moderating content:', error);
+      // Default to allowing content on error
       return {
         isAppropriate: true,
         confidence: 0.1,

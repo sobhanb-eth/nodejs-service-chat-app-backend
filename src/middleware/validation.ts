@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { z, ZodSchema, ZodError } from 'zod';
 import { ValidationError } from '../utils/errors';
 import { appLogger } from '../utils/logger';
+import 'multer'; // Import to ensure types are available
 
 /**
  * Validation middleware factory
@@ -206,8 +207,31 @@ export const authSchemas = {
   updateProfile: z.object({
     firstName: z.string().min(1).max(50).trim().optional(),
     lastName: z.string().min(1).max(50).trim().optional(),
+    username: z.string()
+      .min(3, 'Username must be at least 3 characters')
+      .max(30, 'Username must be at most 30 characters')
+      .regex(/^[a-zA-Z0-9_-]+$/, 'Username can only contain letters, numbers, underscores, and hyphens')
+      .trim()
+      .optional(),
+    profileImageUrl: z.string()
+      .url('Must be a valid URL')
+      .max(2048, 'URL must be at most 2048 characters')
+      .optional(),
+    // Keep legacy avatar field for backward compatibility
     avatar: z.string().url().optional(),
-  }),
+  }).refine(
+    (data) => {
+      // If both profileImageUrl and avatar are provided, they should be the same
+      if (data.profileImageUrl && data.avatar) {
+        return data.profileImageUrl === data.avatar;
+      }
+      return true;
+    },
+    {
+      message: "profileImageUrl and avatar fields cannot have different values",
+      path: ["profileImageUrl"]
+    }
+  ),
 };
 
 /**
@@ -243,7 +267,7 @@ export const socketSchemas = {
  * File validation
  */
 export function validateFile(req: Request, res: Response, next: NextFunction) {
-  const file = req.file;
+  const file = (req as any).file;
 
   if (!file) {
     return next(new ValidationError('File is required'));

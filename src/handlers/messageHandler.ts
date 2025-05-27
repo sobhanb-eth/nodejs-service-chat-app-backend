@@ -39,8 +39,8 @@ export function handleMessageEvents(
         return;
       }
 
-      // Check if user is member of the group
-      const isMember = await authService.isUserGroupMember(userId, groupId);
+      // Check if user is member of the group (use Clerk ID for membership check)
+      const isMember = await authService.isUserGroupMember(user.clerkId, groupId);
       if (!isMember) {
         socket.emit(SocketEvents.MESSAGE_ERROR, createSocketError(
           SocketErrorCodes.ACCESS_DENIED,
@@ -58,23 +58,33 @@ export function handleMessageEvents(
         return;
       }
 
-      // Create message
+      // Create message - Use Clerk ID for consistent identification
       const message = await messageService.createMessage({
         groupId,
-        senderId: userId,
+        senderId: user.clerkId, // Store Clerk ID directly in database
         content,
         type,
       });
 
+      // Transform message for frontend - both database and frontend now use Clerk ID
+      const transformedMessage = {
+        id: message._id?.toString(),
+        content: message.content,
+        senderId: message.senderId, // This is now the Clerk ID from database
+        senderEmail: user.email,
+        timestamp: message.createdAt?.toISOString(),
+        roomId: message.groupId.toString(),
+      };
+
       // Emit success to sender
       socket.emit(SocketEvents.MESSAGE_SENT, {
-        message,
+        message: transformedMessage,
         tempId,
       });
 
       // Broadcast new message to group members (excluding sender)
       socket.to(SocketRooms.group(groupId)).emit(SocketEvents.NEW_MESSAGE, {
-        message,
+        message: transformedMessage,
         sender: {
           _id: user._id,
           firstName: user.firstName,
@@ -84,7 +94,7 @@ export function handleMessageEvents(
         },
       });
 
-      console.log(`✅ Message sent: ${message._id} in group: ${groupId} by user: ${userId}`);
+      console.log(`✅ Message sent: ${message._id} in group: ${groupId} by user: ${user.clerkId}`);
     } catch (error) {
       console.error('❌ Error sending message:', error);
       socket.emit(SocketEvents.MESSAGE_ERROR, createSocketError(
@@ -101,7 +111,7 @@ export function handleMessageEvents(
         return;
       }
 
-      const { userId } = getAuthenticatedUser(socket);
+      const { userId, user } = getAuthenticatedUser(socket);
       const { messageId, groupId } = payload;
 
       // Validate payload
@@ -109,14 +119,14 @@ export function handleMessageEvents(
         return;
       }
 
-      // Check if user is member of the group
-      const isMember = await authService.isUserGroupMember(userId, groupId);
+      // Check if user is member of the group (use Clerk ID for membership check)
+      const isMember = await authService.isUserGroupMember(user.clerkId, groupId);
       if (!isMember) {
         return;
       }
 
-      // Mark message as read
-      const success = await messageService.markMessageAsRead(messageId, userId);
+      // Mark message as read - Use Clerk ID for consistent identification
+      const success = await messageService.markMessageAsRead(messageId, user.clerkId);
 
       if (success) {
         const readAt = new Date();
@@ -125,11 +135,11 @@ export function handleMessageEvents(
         socket.to(SocketRooms.group(groupId)).emit(SocketEvents.MESSAGE_READ, {
           messageId,
           groupId,
-          readBy: userId,
+          readBy: user.clerkId, // Use Clerk ID consistently
           readAt,
         });
 
-        console.log(`✅ Message marked as read: ${messageId} by user: ${userId}`);
+        console.log(`✅ Message marked as read: ${messageId} by user: ${user.clerkId}`);
       }
     } catch (error) {
       console.error('❌ Error marking message as read:', error);
@@ -143,7 +153,7 @@ export function handleMessageEvents(
         return;
       }
 
-      const { userId } = getAuthenticatedUser(socket);
+      const { userId, user } = getAuthenticatedUser(socket);
       const { groupId, messageIds } = payload;
 
       // Validate payload
@@ -151,14 +161,14 @@ export function handleMessageEvents(
         return;
       }
 
-      // Check if user is member of the group
-      const isMember = await authService.isUserGroupMember(userId, groupId);
+      // Check if user is member of the group (use Clerk ID for membership check)
+      const isMember = await authService.isUserGroupMember(user.clerkId, groupId);
       if (!isMember) {
         return;
       }
 
-      // Mark messages as read
-      const markedAsRead = await messageService.markMessagesAsRead(messageIds, userId);
+      // Mark messages as read - Use Clerk ID for consistent identification
+      const markedAsRead = await messageService.markMessagesAsRead(messageIds, user.clerkId);
 
       if (markedAsRead.length > 0) {
         const readAt = new Date();
@@ -167,11 +177,11 @@ export function handleMessageEvents(
         socket.to(SocketRooms.group(groupId)).emit(SocketEvents.MESSAGES_READ, {
           groupId,
           messageIds: markedAsRead,
-          readBy: userId,
+          readBy: user.clerkId, // Use Clerk ID consistently
           readAt,
         });
 
-        console.log(`✅ ${markedAsRead.length} messages marked as read in group: ${groupId} by user: ${userId}`);
+        console.log(`✅ ${markedAsRead.length} messages marked as read in group: ${groupId} by user: ${user.clerkId}`);
       }
     } catch (error) {
       console.error('❌ Error marking messages as read:', error);
@@ -189,7 +199,7 @@ export function handleMessageEvents(
         return;
       }
 
-      const { userId } = getAuthenticatedUser(socket);
+      const { userId, user } = getAuthenticatedUser(socket);
       const { messageId, groupId } = payload;
 
       // Validate payload
@@ -201,8 +211,8 @@ export function handleMessageEvents(
         return;
       }
 
-      // Check if user is member of the group
-      const isMember = await authService.isUserGroupMember(userId, groupId);
+      // Check if user is member of the group (use Clerk ID for membership check)
+      const isMember = await authService.isUserGroupMember(user.clerkId, groupId);
       if (!isMember) {
         socket.emit(SocketEvents.MESSAGE_ERROR, createSocketError(
           SocketErrorCodes.ACCESS_DENIED,
@@ -211,18 +221,18 @@ export function handleMessageEvents(
         return;
       }
 
-      // Delete message (only sender can delete their own messages)
-      const success = await messageService.deleteMessage(messageId, userId);
+      // Delete message (only sender can delete their own messages) - Use Clerk ID for consistent identification
+      const success = await messageService.deleteMessage(messageId, user.clerkId);
 
       if (success) {
         // Broadcast message deletion to group members
         io.to(SocketRooms.group(groupId)).emit(SocketEvents.MESSAGE_DELETED, {
           messageId,
           groupId,
-          deletedBy: userId,
+          deletedBy: user.clerkId, // Use Clerk ID consistently
         });
 
-        console.log(`✅ Message deleted: ${messageId} by user: ${userId}`);
+        console.log(`✅ Message deleted: ${messageId} by user: ${user.clerkId}`);
       } else {
         socket.emit(SocketEvents.MESSAGE_ERROR, createSocketError(
           SocketErrorCodes.ACCESS_DENIED,
@@ -249,7 +259,7 @@ export function handleMessageEvents(
         return;
       }
 
-      const { userId } = getAuthenticatedUser(socket);
+      const { userId, user } = getAuthenticatedUser(socket);
       const { messageContent, groupId, contextMessages } = payload;
 
       // Validate payload
@@ -261,8 +271,8 @@ export function handleMessageEvents(
         return;
       }
 
-      // Check if user is member of the group
-      const isMember = await authService.isUserGroupMember(userId, groupId);
+      // Check if user is member of the group (use Clerk ID for membership check)
+      const isMember = await authService.isUserGroupMember(user.clerkId, groupId);
       if (!isMember) {
         socket.emit(SocketEvents.AI_ERROR, createSocketError(
           SocketErrorCodes.ACCESS_DENIED,
@@ -273,9 +283,9 @@ export function handleMessageEvents(
 
       const requestId = `smart_reply_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      // Generate smart replies using AI service
+      // Generate smart replies using AI service - Use Clerk ID for consistent identification
       const startTime = Date.now();
-      const smartReplyResponse = await aiService.generateSmartReplies(messageContent, groupId, userId);
+      const smartReplyResponse = await aiService.generateSmartReplies(messageContent, groupId, user.clerkId);
       const processingTime = Date.now() - startTime;
 
       // Emit complete smart replies to the requesting user
@@ -286,7 +296,7 @@ export function handleMessageEvents(
         processingTime,
       });
 
-      console.log(`✅ Smart replies generated for user: ${userId} in group: ${groupId} (${processingTime}ms)`);
+      console.log(`✅ Smart replies generated for user: ${user.clerkId} in group: ${groupId} (${processingTime}ms)`);
     } catch (error) {
       console.error('❌ Error generating smart replies:', error);
       socket.emit(SocketEvents.AI_ERROR, createSocketError(
@@ -307,7 +317,7 @@ export function handleMessageEvents(
         return;
       }
 
-      const { userId } = getAuthenticatedUser(socket);
+      const { userId, user } = getAuthenticatedUser(socket);
       const { partialText, groupId, cursorPosition } = payload;
 
       // Validate payload
@@ -319,8 +329,8 @@ export function handleMessageEvents(
         return;
       }
 
-      // Check if user is member of the group
-      const isMember = await authService.isUserGroupMember(userId, groupId);
+      // Check if user is member of the group (use Clerk ID for membership check)
+      const isMember = await authService.isUserGroupMember(user.clerkId, groupId);
       if (!isMember) {
         socket.emit(SocketEvents.AI_ERROR, createSocketError(
           SocketErrorCodes.ACCESS_DENIED,
@@ -341,7 +351,7 @@ export function handleMessageEvents(
         confidence: 0.8, // Default confidence for typing suggestions
       });
 
-      console.log(`✅ Typing suggestion generated for user: ${userId} in group: ${groupId}`);
+      console.log(`✅ Typing suggestion generated for user: ${user.clerkId} in group: ${groupId}`);
     } catch (error) {
       console.error('❌ Error generating typing suggestion:', error);
       socket.emit(SocketEvents.AI_ERROR, createSocketError(
@@ -358,7 +368,7 @@ export function handleMessageEvents(
         return; // Silent fail for rating events
       }
 
-      const { userId } = getAuthenticatedUser(socket);
+      const { userId, user } = getAuthenticatedUser(socket);
       const { suggestionId, rating, feedback } = payload;
 
       // Validate payload
@@ -367,7 +377,7 @@ export function handleMessageEvents(
       }
 
       // Store AI feedback for improvement (implement in AIService if needed)
-      console.log(`📊 AI Suggestion rated: ${suggestionId} - ${rating} by user: ${userId}`, feedback ? `Feedback: ${feedback}` : '');
+      console.log(`📊 AI Suggestion rated: ${suggestionId} - ${rating} by user: ${user.clerkId}`, feedback ? `Feedback: ${feedback}` : '');
 
       // TODO: Implement AI feedback storage in AIService for model improvement
 
