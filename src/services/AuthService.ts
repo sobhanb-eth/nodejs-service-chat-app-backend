@@ -3,44 +3,149 @@ import { database } from '../config/database';
 import { User } from '../types/database';
 
 /**
- * JWT payload interface from Clerk
+ * JWT payload interface from Clerk authentication service
+ *
+ * @description Defines the structure of JWT tokens issued by Clerk for user authentication.
+ * Contains user identity information and token metadata for validation and user sync.
+ *
+ * @interface ClerkJWTPayload
+ * @since 1.0.0
  */
 interface ClerkJWTPayload {
-  sub: string; // Clerk user ID
+  /** Clerk user ID (subject) - primary identifier */
+  sub: string;
+  /** User email address (primary field) */
   email?: string;
+  /** Alternative email field */
   email_address?: string;
+  /** Primary email address field */
   primary_email_address?: string;
+  /** User's first name */
   given_name?: string;
+  /** User's last name */
   family_name?: string;
+  /** User's username */
   username?: string;
+  /** Profile picture URL */
   picture?: string;
+  /** Token issuer */
   iss: string;
+  /** Token audience */
   aud?: string;
+  /** Token expiration timestamp */
   exp: number;
+  /** Token issued at timestamp */
   iat: number;
+  /** Token not before timestamp */
   nbf?: number;
-  [key: string]: any; // Allow additional fields
+  /** Allow additional Clerk fields */
+  [key: string]: any;
 }
 
 /**
- * Profile update interface
+ * Profile update data interface
+ *
+ * @description Defines the structure for user profile updates.
+ * Contains optional fields that can be modified by users.
+ *
+ * @interface ProfileUpdateData
+ * @since 1.0.0
  */
 interface ProfileUpdateData {
+  /** User's first name */
   firstName?: string;
+  /** User's last name */
   lastName?: string;
+  /** User's unique username (stored in lowercase) */
   username?: string;
+  /** Profile image URL */
   profileImageUrl?: string;
 }
 
 /**
- * Authentication service for JWT validation and user management
+ * AuthService - Authentication and user management service
+ *
+ * @description Handles user authentication, JWT validation, user synchronization,
+ * and profile management. Integrates with Clerk authentication service while
+ * maintaining local user data for chat functionality.
+ *
+ * @features
+ * - JWT token validation and user sync
+ * - User profile management and updates
+ * - Group membership validation
+ * - Multi-field user lookup (ID, Clerk ID, username)
+ * - Batch user operations
+ * - Last seen timestamp tracking
+ * - Username uniqueness and normalization
+ *
+ * @security
+ * - Clerk JWT validation for authentication
+ * - Secure user data synchronization
+ * - Input validation and sanitization
+ * - Active user filtering
+ * - Clerk ID consistency across services
+ *
+ * @performance
+ * - Efficient database queries with indexes
+ * - Batch user retrieval operations
+ * - Optimized group membership checks
+ * - Minimal data synchronization
+ * - Username normalization for consistency
+ *
+ * @author SOBHAN BAHRAMI
+ * @since 1.0.0
  */
 export class AuthService {
   /**
-   * Sync user from JWT payload (create or update)
+   * Synchronize user data from Clerk JWT payload
+   *
+   * @description Creates new users or updates existing users based on Clerk JWT data.
+   * Handles user synchronization between Clerk authentication service and local database
+   * while preserving user-modified profile data and maintaining data consistency.
+   *
+   * @param {ClerkJWTPayload} payload - JWT payload from Clerk containing user data
+   * @returns {Promise<User | null>} The synchronized user object or null if failed
+   *
+   * @throws {Error} Invalid JWT payload: missing clerkId (sub)
+   * @throws {Error} Database operation failures
+   *
+   * @flow
+   * 1. Extract user data from JWT payload with fallbacks
+   * 2. Validate required clerkId field
+   * 3. Search for existing user by Clerk ID
+   * 4. Update existing user with selective field sync
+   * 5. Create new user if not found
+   * 6. Return synchronized user data
+   *
+   * @security
+   * - Validates JWT payload structure
+   * - Preserves user-modified profile data
+   * - Selective field synchronization from Clerk
+   * - Email fallback for missing email fields
+   *
+   * @performance
+   * - Single database lookup for existing users
+   * - Minimal field updates for existing users
+   * - Efficient user creation for new users
+   * - Selective field synchronization
+   *
+   * @example
+   * ```typescript
+   * const jwtPayload = {
+   *   sub: 'user_clerk_id_123',
+   *   email: 'user@example.com',
+   *   given_name: 'John',
+   *   family_name: 'Doe'
+   * };
+   * const user = await authService.syncUserFromJWT(jwtPayload);
+   * ```
+   *
+   * @author SOBHAN BAHRAMI
+   * @since 1.0.0
    */
   async syncUserFromJWT(payload: ClerkJWTPayload): Promise<User | null> {
     try {
+      // Step 1: Extract user data from JWT with fallbacks
       const clerkId = payload.sub;
       const email = payload.email || payload.email_address || payload.primary_email_address || `${clerkId}@clerk.dev`;
       const firstName = payload.given_name || '';
@@ -48,13 +153,14 @@ export class AuthService {
       const username = payload.username;
       const profileImageUrl = payload.picture;
 
+      // Step 2: Validate required clerkId field
       if (!clerkId) {
         throw new Error('Invalid JWT payload: missing clerkId (sub)');
       }
 
       console.log(`🔍 AuthService: Processing user - clerkId: ${clerkId}, email: ${email}`);
 
-      // Try to find existing user by Clerk ID
+      // Step 3: Search for existing user by Clerk ID
       let user = await database.users.findOne({ clerkId });
 
       if (user) {
