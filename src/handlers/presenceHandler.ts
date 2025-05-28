@@ -27,27 +27,36 @@ export function handlePresenceEvents(
 ) {
   // Handle typing start
   socket.on(SocketEvents.TYPING_START, async (payload: TypingStartPayload) => {
+    console.log(`🔥 TYPING_START event received! Payload:`, payload);
     try {
       if (!requireAuth(socket)) {
+        console.log(`❌ TYPING_START blocked - not authenticated`);
         return;
       }
 
       const { userId, user } = getAuthenticatedUser(socket);
       const { groupId } = payload;
+      console.log(`🔥 TYPING_START processing - User: ${userId}, Group: ${groupId}`);
 
       // Validate payload
       if (!groupId) {
         return;
       }
 
-      // Check if user is member of the group
-      const isMember = await authService.isUserGroupMember(userId, groupId);
+      // Check if user is member of the group (use Clerk ID for membership check)
+      const isMember = await authService.isUserGroupMember(user.clerkId, groupId);
+      console.log(`🔍 Typing start - User ${user.clerkId} is member of group ${groupId}:`, isMember);
       if (!isMember) {
+        console.log(`❌ Typing start blocked - User ${user.clerkId} not member of group ${groupId}`);
         return;
       }
 
       // Check if user has joined this group room
-      if (!socket.data.joinedGroups.has(groupId)) {
+      const hasJoinedRoom = socket.data.joinedGroups.has(groupId);
+      console.log(`🔍 Typing start - User ${userId} has joined room ${groupId}:`, hasJoinedRoom);
+      console.log(`🔍 Typing start - User's joined groups:`, Array.from(socket.data.joinedGroups));
+      if (!hasJoinedRoom) {
+        console.log(`❌ Typing start blocked - User ${userId} has not joined room ${groupId}`);
         return;
       }
 
@@ -60,23 +69,28 @@ export function handlePresenceEvents(
       }
 
       // Broadcast typing indicator to group members (excluding sender)
-      socket.to(SocketRooms.group(groupId)).emit(SocketEvents.USER_TYPING, {
+      const typingPayload = {
         groupId,
-        userId,
+        userId: user.clerkId, // Use Clerk ID consistently
         user: {
           _id: user._id,
           firstName: user.firstName,
           lastName: user.lastName,
           username: user.username,
         },
-      });
+      };
+
+      console.log(`⌨️ Broadcasting typing start to room: ${SocketRooms.group(groupId)}`);
+      console.log(`⌨️ Typing payload:`, typingPayload);
+
+      socket.to(SocketRooms.group(groupId)).emit(SocketEvents.USER_TYPING, typingPayload);
 
       // Set auto-stop timeout (5 seconds)
       const timeout = setTimeout(() => {
         // Auto-stop typing if no activity
         socket.to(SocketRooms.group(groupId)).emit(SocketEvents.USER_STOPPED_TYPING, {
           groupId,
-          userId,
+          userId: user.clerkId, // Use Clerk ID consistently
         });
         typingStates.delete(typingKey);
       }, 5000);
@@ -101,7 +115,7 @@ export function handlePresenceEvents(
         return;
       }
 
-      const { userId } = getAuthenticatedUser(socket);
+      const { userId, user } = getAuthenticatedUser(socket);
       const { groupId } = payload;
 
       // Validate payload
@@ -120,10 +134,10 @@ export function handlePresenceEvents(
         // Broadcast stop typing to group members (excluding sender)
         socket.to(SocketRooms.group(groupId)).emit(SocketEvents.USER_STOPPED_TYPING, {
           groupId,
-          userId,
+          userId: user.clerkId, // Use Clerk ID consistently
         });
 
-        console.log(`⌨️ User stopped typing: ${userId} in group: ${groupId}`);
+        console.log(`⌨️ User stopped typing: ${user.clerkId} in group: ${groupId}`);
       }
     } catch (error) {
       console.error('❌ Error handling typing stop:', error);
@@ -137,12 +151,12 @@ export function handlePresenceEvents(
         return;
       }
 
-      const { userId } = getAuthenticatedUser(socket);
+      const { userId, user } = getAuthenticatedUser(socket);
       const { groupId } = payload;
 
       // If groupId is provided, check if user is member
       if (groupId) {
-        const isMember = await authService.isUserGroupMember(userId, groupId);
+        const isMember = await authService.isUserGroupMember(user.clerkId, groupId);
         if (!isMember) {
           return;
         }
@@ -198,8 +212,9 @@ export function handlePresenceEvents(
 
   // Clean up typing states on disconnect
   socket.on(SocketEvents.DISCONNECT, () => {
-    if (socket.data.isAuthenticated && socket.data.userId) {
+    if (socket.data.isAuthenticated && socket.data.userId && socket.data.user) {
       const userId = socket.data.userId;
+      const user = socket.data.user;
 
       // Clean up all typing states for this user
       for (const [key, state] of typingStates.entries()) {
@@ -209,7 +224,7 @@ export function handlePresenceEvents(
           // Broadcast stop typing for all groups
           socket.to(SocketRooms.group(state.groupId)).emit(SocketEvents.USER_STOPPED_TYPING, {
             groupId: state.groupId,
-            userId,
+            userId: user.clerkId, // Use Clerk ID consistently
           });
 
           typingStates.delete(key);

@@ -57,8 +57,8 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
 
   // Rate Limiting Configuration
-  RATE_LIMIT_WINDOW_MS: z.string().transform(Number).default('900000'), // 15 minutes
-  RATE_LIMIT_MAX_REQUESTS: z.string().transform(Number).default('100'),
+  RATE_LIMIT_WINDOW_MS: z.string().transform(Number).default('60000'), // 1 minute for development
+  RATE_LIMIT_MAX_REQUESTS: z.string().transform(Number).default('1000'), // 1000 requests per minute for development
 
   // Session Configuration
   SESSION_CLEANUP_INTERVAL: z.string().transform(Number).default('300000'), // 5 minutes

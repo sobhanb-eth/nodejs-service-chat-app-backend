@@ -48,8 +48,8 @@ export function handleGroupEvents(
         return;
       }
 
-      // Check if user is member of the group
-      const isMember = await authService.isUserGroupMember(userId, groupId);
+      // Check if user is member of the group (use Clerk ID for membership check)
+      const isMember = await authService.isUserGroupMember(user.clerkId, groupId);
       if (!isMember) {
         socket.emit(SocketEvents.GROUP_ERROR, createSocketError(
           SocketErrorCodes.ACCESS_DENIED,
@@ -174,7 +174,7 @@ export function handleGroupEvents(
         return;
       }
 
-      const { userId } = getAuthenticatedUser(socket);
+      const { userId, user } = getAuthenticatedUser(socket);
       const { groupId } = payload;
 
       // Validate payload
@@ -182,8 +182,8 @@ export function handleGroupEvents(
         return;
       }
 
-      // Check if user is member of the group
-      const isMember = await authService.isUserGroupMember(userId, groupId);
+      // Check if user is member of the group (use Clerk ID for membership check)
+      const isMember = await authService.isUserGroupMember(user.clerkId, groupId);
       if (!isMember) {
         return;
       }

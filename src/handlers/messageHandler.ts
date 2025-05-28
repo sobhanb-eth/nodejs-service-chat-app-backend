@@ -145,12 +145,15 @@ export function handleMessageEvents(
         const readAt = new Date();
 
         // Broadcast read receipt to group members
-        socket.to(SocketRooms.group(groupId)).emit(SocketEvents.MESSAGE_READ, {
+        const readReceiptPayload = {
           messageId,
           groupId,
           readBy: user.clerkId, // Use Clerk ID consistently
           readAt,
-        });
+        };
+
+        console.log(`📡 Broadcasting read receipt to room: group:${groupId}`, readReceiptPayload);
+        socket.to(SocketRooms.group(groupId)).emit(SocketEvents.MESSAGE_READ, readReceiptPayload);
 
         console.log(`✅ Message marked as read: ${messageId} by user: ${user.clerkId}`);
       }
@@ -187,12 +190,15 @@ export function handleMessageEvents(
         const readAt = new Date();
 
         // Broadcast bulk read receipt to group members
-        socket.to(SocketRooms.group(groupId)).emit(SocketEvents.MESSAGES_READ, {
+        const bulkReadReceiptPayload = {
           groupId,
           messageIds: markedAsRead,
           readBy: user.clerkId, // Use Clerk ID consistently
           readAt,
-        });
+        };
+
+        console.log(`📡 Broadcasting bulk read receipt to room: group:${groupId}`, bulkReadReceiptPayload);
+        socket.to(SocketRooms.group(groupId)).emit(SocketEvents.MESSAGES_READ, bulkReadReceiptPayload);
 
         console.log(`✅ ${markedAsRead.length} messages marked as read in group: ${groupId} by user: ${user.clerkId}`);
       }
