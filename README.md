@@ -1,6 +1,6 @@
 # 🚀 Node.js Real-Time Chat Service
 
-[![Build Status](https://github.com/sobhanb-eth/safe_realtime_chat_ai_enhanced/actions/workflows/main_safechatai.yml/badge.svg)](https://github.com/sobhanb-eth/safe_realtime_chat_ai_enhanced/actions)
+[![Build Status](https://github.com/sobhanb-eth/nodejs-service-chat-app-backend/actions/workflows/main_safechatai.yml/badge.svg)](https://github.com/sobhanb-eth/safe_realtime_chat_ai_enhanced/actions)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Socket.io](https://img.shields.io/badge/Socket.io-4.7+-green.svg)](https://socket.io/)
