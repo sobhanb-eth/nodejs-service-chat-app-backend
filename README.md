@@ -7,6 +7,9 @@
 
 A high-performance, secure real-time messaging service built with **Node.js**, **Express**, **Socket.io**, and **TypeScript**. Features end-to-end encryption, AI-powered smart replies, and comprehensive real-time communication capabilities for the **NEXUS** (SafeChat AI-Enhanced) platform.
 
+### **📲 Frontend Repository**
+[NEXUS](https://github.com/sobhanb-eth/safechat-expo)
+
 ## 🌟 **Key Features**
 
 ### **🔐 Security & Authentication**
@@ -1141,7 +1144,7 @@ npm run test:coverage
 **SOBHAN BAHRAMI** - Architect, Full-Stack & AI Engineer
 
 ### **📂 Repository**
-[safe_realtime_chat_ai_enhanced](https://github.com/sobhanb-eth/nodejs-service-chat-app-backend)
+[safe_realtime_chat_ai](https://github.com/sobhanb-eth/nodejs-service-chat-app-backend)
 
 ### **📋 Project Status**
 This project was developed as a comprehensive task to demonstrate:
