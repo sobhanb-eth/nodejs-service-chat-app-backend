@@ -1084,28 +1084,28 @@ npm run test:coverage
 
 ## 🚀 **Roadmap & Future Enhancements**
 
-### **🎯 Phase 1: Core Improvements (Q1 2024)**
+### **🎯 Phase 1: Core Improvements**
 - [ ] **Message Search**: Full-text search with vector embeddings
 - [ ] **File Sharing**: Enhanced media support with thumbnails
 - [ ] **Message Reactions**: Emoji reactions and message threading
 - [ ] **Push Notifications**: Real-time notifications for offline users
 - [ ] **Message Encryption**: Enhanced encryption for group keys
 
-### **🎯 Phase 2: AI Enhancements (Q2 2024)**
+### **🎯 Phase 2: AI Enhancements**
 - [ ] **Smart Summaries**: AI-generated conversation summaries
 - [ ] **Language Translation**: Real-time message translation
 - [ ] **Sentiment Analysis**: Emotion detection in messages
 - [ ] **Content Suggestions**: AI-powered content recommendations
 - [ ] **Voice Messages**: Speech-to-text and text-to-speech
 
-### **🎯 Phase 3: Scalability (Q3 2024)**
+### **🎯 Phase 3: Scalability**
 - [ ] **Horizontal Scaling**: Multi-instance deployment
 - [ ] **Redis Clustering**: Distributed session management
 - [ ] **CDN Integration**: Global content delivery
 - [ ] **Database Sharding**: Improved database performance
 - [ ] **Microservices**: Service decomposition for scalability
 
-### **🎯 Phase 4: Advanced Features (Q4 2024)**
+### **🎯 Phase 4: Advanced Features**
 - [ ] **Video Calls**: WebRTC integration for video chat
 - [ ] **Screen Sharing**: Real-time screen sharing capabilities
 - [ ] **Bot Integration**: Chatbot and automation support
